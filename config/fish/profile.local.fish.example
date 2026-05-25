@@ -1,0 +1,12 @@
+# profile.local.fish — machine-local secrets and overrides.
+#
+# install.sh copies this template to ~/.config/fish/profile.local.fish if you
+# don't already have one (seed-if-absent; reinstalls never clobber it).
+# conf.d/00-core.fish sources profile.local.fish on startup (if present).
+#
+# This file is a TEMPLATE and is tracked in git. Your real profile.local.fish
+# is NOT tracked — put actual secret values there, never here.
+
+# GitHub personal access token for MCP / gh tooling.
+# Generate at https://github.com/settings/tokens and paste below.
+set -gx GITHUB_PERSONAL_ACCESS_TOKEN "github_pat_xxxxxxxxxxxxxxxxxxxx"

@@ -1,0 +1,39 @@
+# goreleaser config — the Build step (docs/adr/0003).
+#
+# Cross-compiles the Installer (config payload embedded via go:embed) for
+# linux/darwin × amd64/arm64 and publishes each as a raw binary release asset
+# named "<binary>_<os>_<arch>", which the Install shim downloads directly.
+#
+#   goreleaser release --clean        (on a tag, in CI)
+#   goreleaser build --snapshot --clean   (local test build)
+version: 2
+
+project_name: dotfiles-installer
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: installer
+    main: ./cmd/installer
+    binary: dotfiles-installer
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: raw
+    formats: [binary]
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+
+release:
+  github:
+    owner: anpmts
+    name: dotfiles-fish

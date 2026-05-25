@@ -1,0 +1,120 @@
+# modules.toml — the Manifest: the sole source of truth for selectable Modules.
+#
+# See docs/adr/0004. The fish snippet CONTENT lives under config/fish/conf.d/;
+# this file owns ALL Module metadata (the snippets carry none). Core
+# (config/fish/conf.d/00-core.fish, the profile template, fish_plugins, shared
+# functions) is always installed and is intentionally NOT listed here.
+#
+# Each [[module]] couples one dependency to the files it owns:
+#   name         unique Module id (matches the picker label + --modules value)
+#   order        load order; MUST agree with the NN- prefix of its conf.d snippet
+#   description  one line shown in the interactive picker
+#   default      pre-selected in the picker / part of the full default set
+#   files        paths the Module owns, relative to config/ (deselecting removes them)
+#   [module.dep] how to install the dependency:
+#       check               command tested with `command -v` (default: name)
+#       [module.dep.packages]  per-package-manager package name (brew, paru, ...)
+#       install             optional vendor install script, used when no package
+#                           name maps to the detected package manager
+
+[[module]]
+name = "eza"
+order = 10
+description = "Replace ls with eza (icons, git, tree)"
+default = true
+files = ["fish/conf.d/10-eza.fish"]
+[module.dep]
+check = "eza"
+[module.dep.packages]
+brew = "eza"
+paru = "eza"
+
+[[module]]
+name = "bat"
+order = 20
+description = "bat as a nicer cat and for man pages"
+default = true
+files = ["fish/conf.d/20-bat.fish"]
+[module.dep]
+check = "bat"
+[module.dep.packages]
+brew = "bat"
+paru = "bat"
+
+[[module]]
+name = "ugrep"
+order = 30
+description = "Replace the grep family with ugrep"
+default = true
+files = ["fish/conf.d/30-ugrep.fish"]
+[module.dep]
+check = "ugrep"
+[module.dep.packages]
+brew = "ugrep"
+paru = "ugrep"
+
+[[module]]
+name = "rustup"
+order = 35
+description = "Rust toolchain via rustup (cargo env)"
+default = true
+files = ["fish/conf.d/35-rustup.fish"]
+[module.dep]
+check = "rustup"
+install = "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path"
+
+[[module]]
+name = "docker"
+order = 40
+description = "Docker helpers and completions"
+default = true
+files = ["fish/conf.d/40-docker.fish", "fish/completions/docker.fish"]
+[module.dep]
+check = "docker"
+[module.dep.packages]
+brew = "docker"
+paru = "docker"
+
+[[module]]
+name = "pnpm"
+order = 50
+description = "pnpm on PATH; enforce it over npm/yarn/bun"
+default = true
+files = ["fish/conf.d/50-pnpm.fish", "fish/functions/only-pnpm.fish"]
+[module.dep]
+check = "pnpm"
+install = "curl -fsSL https://get.pnpm.io/install.sh | sh -"
+
+[[module]]
+name = "starship"
+order = 60
+description = "Starship cross-shell prompt"
+default = true
+files = ["fish/conf.d/60-starship.fish", "starship.toml"]
+[module.dep]
+check = "starship"
+install = "curl -sS https://starship.rs/install.sh | sh -s -- -y"
+
+[[module]]
+name = "asdf"
+order = 70
+description = "asdf version manager"
+default = true
+files = ["fish/conf.d/70-asdf.fish"]
+[module.dep]
+check = "asdf"
+[module.dep.packages]
+brew = "asdf"
+paru = "asdf"
+
+[[module]]
+name = "fastfetch"
+order = 90
+description = "Fastfetch greeting (loads last)"
+default = true
+files = ["fish/conf.d/90-fastfetch.fish", "fastfetch/config.jsonc"]
+[module.dep]
+check = "fastfetch"
+[module.dep.packages]
+brew = "fastfetch"
+paru = "fastfetch"

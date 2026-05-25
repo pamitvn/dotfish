@@ -1,0 +1,25 @@
+# goreleaser build output (the Build step; binaries are published to Releases)
+dist/
+
+# Fish runtime / machine state
+fish_variables
+fish_history
+
+# OS cruft
+.DS_Store
+
+# Stale manual backups (git is the backup now)
+*.bk
+config.fish.bk
+
+# Local-only tool state
+.claude/settings.local.json
+
+# Machine-local secrets (templated by profile.local.fish.example, installed to
+# ~/.config/fish/profile.local.fish). Never vendor a real one in the Build source.
+config/fish/profile.local.fish
+
+# Fisher-managed plugin files (owned by fish_plugins, not vendored here).
+# edc/bass writes these into the fish functions/ dir on `fisher update`.
+config/fish/functions/bass.fish
+config/fish/functions/__bass.py
