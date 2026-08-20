@@ -8,16 +8,20 @@
 # See docs/adr/0003.
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/anpmts/dotfiles-fish/main/shim/install.sh | sh
+#   curl -fsSL https://dotfish-cdn.isap.vn/install.sh | sh
 #
 # Pass Installer arguments after `-s --`, e.g. install every Module:
-#   curl -fsSL .../shim/install.sh | sh -s -- --all
+#   curl -fsSL https://dotfish-cdn.isap.vn/install.sh | sh -s -- --all
 #
-# Overrides: DOTFILES_REPO=owner/repo  DOTFILES_VERSION=v1.2.3
-#            DOTFILES_BIN_DIR=/path    (default ~/.local/bin)
+# Overrides: DOTFILES_BASE_URL=https://host  DOTFILES_VERSION=v1.2.3
+#            DOTFILES_BIN_DIR=/path            (default ~/.local/bin)
 set -eu
 
-REPO="${DOTFILES_REPO:-anpmts/dotfiles-fish}"
+# Artifacts live in a public R2 bucket, not GitHub Releases: the source repo is
+# private, so both its release assets and its raw.githubusercontent.com URLs
+# require auth. R2 keeps the one-command bootstrap working without a token.
+BASE_URL="${DOTFILES_BASE_URL:-https://dotfish-cdn.isap.vn}"
+BASE_URL="${BASE_URL%/}"
 BIN="dotfish"
 BIN_DIR="${DOTFILES_BIN_DIR:-$HOME/.local/bin}"
 
@@ -34,12 +38,11 @@ case "$arch" in
     *) echo "✗ unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 
+# "latest" is a real rolling path in the bucket, so the common case is a single
+# request with no version lookup. A pinned version addresses its immutable tag
+# directory instead.
 ver="${DOTFILES_VERSION:-latest}"
-if [ "$ver" = latest ]; then
-    url="https://github.com/$REPO/releases/latest/download/${BIN}_${os}_${arch}"
-else
-    url="https://github.com/$REPO/releases/download/${ver}/${BIN}_${os}_${arch}"
-fi
+url="$BASE_URL/${ver}/${BIN}_${os}_${arch}"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT

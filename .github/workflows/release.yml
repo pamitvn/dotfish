@@ -1,11 +1,15 @@
 # Release workflow — runs the Build step on a version tag, publishing the
 # cross-compiled Installer binaries the Install shim downloads. See docs/adr/0003.
+#
+# workflow_dispatch runs the same pipeline as a snapshot (build only, no publish)
+# so the Build step can be smoke-tested without cutting a throwaway tag.
 name: release
 
 on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -13,6 +17,21 @@ permissions:
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
+    env:
+      # GoReleaser's blob pipe and the AWS CLI both read the standard AWS
+      # variables; an R2 API token supplies the key pair. R2 has no regions,
+      # but the S3 clients demand one, hence "auto".
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_REGION: auto
+      AWS_DEFAULT_REGION: auto
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      # AWS CLI v2.23+ sends CRC32 integrity headers on every PUT, which R2
+      # has historically rejected. Restricting them to operations that truly
+      # require checksums keeps uploads portable across R2 versions.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,6 +42,31 @@ jobs:
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
-          args: release --clean
+          args: >-
+            ${{ startsWith(github.ref, 'refs/tags/')
+                && 'release --clean'
+                || 'build --snapshot --clean' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The shim is served from R2 too: raw.githubusercontent.com needs auth
+      # for a private repo, so the bootstrap URL itself would 404 otherwise.
+      #
+      # The version pointer goes LAST, on purpose: it is what `dotfish upgrade`
+      # trusts to mean "this version exists". Writing it before the binaries
+      # finish uploading would advertise a release nobody can download.
+      - name: Publish the shim and the latest-version pointer
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          R2: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+        run: |
+          aws s3 cp shim/install.sh "s3://$R2_BUCKET/install.sh" \
+            --endpoint-url "$R2" \
+            --content-type text/x-shellscript \
+            --cache-control no-cache
+
+          printf %s "$GITHUB_REF_NAME" > VERSION
+          aws s3 cp VERSION "s3://$R2_BUCKET/latest/VERSION" \
+            --endpoint-url "$R2" \
+            --content-type text/plain \
+            --cache-control no-cache

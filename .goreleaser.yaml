@@ -33,7 +33,42 @@ archives:
 checksum:
   name_template: checksums.txt
 
+# Owner/name are inferred from the `origin` git remote, which in CI is whatever
+# repo the workflow runs in. Pinning them here breaks the release whenever the
+# repo moves, because GITHUB_TOKEN is only ever scoped to the running repo.
+#
+# GitHub Releases stays enabled for the tag page and changelog, but it is NOT
+# the distribution channel — this repo is private, so its release assets need
+# auth. The Install shim pulls from R2 instead (see `blobs` below).
 release:
-  github:
-    owner: anpmts
-    name: dotfiles-fish
+
+# Distribution — Cloudflare R2, served from a public bucket so `curl | sh` works
+# against a private source repo. Credentials come from the release workflow:
+# an R2 API token exposed as AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY.
+# Note: R2 rejects S3 ACLs, so `acl` is deliberately unset — make the bucket
+# public via its Cloudflare settings (r2.dev subdomain or a custom domain).
+blobs:
+    # Immutable, tag-addressed copy. Nothing at this path ever changes, so it
+    # can be cached forever — this is what a pinned DOTFILES_VERSION resolves to.
+  - provider: s3
+    bucket: '{{ envOrDefault "R2_BUCKET" "dotfiles-fish" }}'
+    endpoint: 'https://{{ envOrDefault "R2_ACCOUNT_ID" "unset" }}.r2.cloudflarestorage.com'
+    region: auto
+    s3_force_path_style: true
+    directory: "{{ .Tag }}"
+    cache_control:
+      - public
+      - max-age=31536000
+      - immutable
+
+    # Rolling copy the shim hits directly, so a default install is one request
+    # with no version lookup. It is overwritten every release, hence no-cache —
+    # a stale edge copy here would pin users to the previous version.
+  - provider: s3
+    bucket: '{{ envOrDefault "R2_BUCKET" "dotfiles-fish" }}'
+    endpoint: 'https://{{ envOrDefault "R2_ACCOUNT_ID" "unset" }}.r2.cloudflarestorage.com'
+    region: auto
+    s3_force_path_style: true
+    directory: latest
+    cache_control:
+      - no-cache

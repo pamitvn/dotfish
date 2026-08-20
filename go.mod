@@ -1,4 +1,4 @@
-module github.com/anpmts/dotfiles-fish
+module github.com/pamts/dotfiles-fish
 
 go 1.23
 

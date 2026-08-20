@@ -23,8 +23,8 @@ ADR-0001 chose POSIX-`sh` precisely because the Installer must run before fish �
 
 ## Consequences
 
-- **A release/CI pipeline now exists.** "Build step" is no longer `install.sh build`; it is a cross-compile matrix (goreleaser/`go build`) producing per-platform binaries published to GitHub Releases. This is new maintainer surface ADR-0001 did not have.
+- **A release/CI pipeline now exists.** "Build step" is no longer `install.sh build`; it is a cross-compile matrix (goreleaser/`go build`) producing per-platform binaries. This is new maintainer surface ADR-0001 did not have.
 - **One-time network fetch of the binary.** "No network fetch of the *repo*" still holds (the payload is embedded), but the Install shim does fetch the binary over the network — a deliberate softening of ADR-0001's stricter "must reach the target somehow" framing.
-- **A public repo + hosted shim are required.** The project becomes open-source with published releases; there is no longer a paste-a-script path as the primary route.
+- **A public *download endpoint* is required — but not a public repo.** Distribution is a public Cloudflare R2 bucket (immutable `<tag>/`, rolling `latest/`, a `latest/VERSION` pointer, and the shim itself at `install.sh`), so the Build source can stay private while `curl | sh` still works unauthenticated. GitHub Releases is kept only for the tag page and changelog. This replaces the original assumption that the project had to become open-source to ship; the cost is a second piece of infrastructure (R2 bucket + API token) that the release workflow depends on. There is no longer a paste-a-script path as the primary route.
 - **`build` and `scaffold` leave the user-facing surface.** They require the Build source present and belong to maintainer tooling; the end-user binary stays lean.
 - **The copy-only Snapshot copy contract is unchanged** — plain copies, pre-existing config backed up, `profile.local.fish` never clobbered, idempotent re-run. A future reader should not "restore" the `sh` installer; that would re-lose the picker UI and the one-command bootstrap.

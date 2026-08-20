@@ -1,5 +1,5 @@
 // Package upgrade implements the Installer's self-upgrade: resolve the newest
-// GitHub release, download the matching prebuilt Installer binary, and hand
+// published version, download the matching prebuilt Installer binary, and hand
 // off to its `install --no-tui` so the prior Module subset is re-installed
 // without a picker. It mirrors the Install shim's download logic
 // (shim/install.sh). See docs/adr/0003.
@@ -11,33 +11,36 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 )
 
 const (
-	defaultRepo = "anpmts/dotfiles-fish"
-	binName     = "dotfish"
+	// Artifacts are served from a public R2 bucket rather than GitHub
+	// Releases: the source repo is private, so its release assets require
+	// auth. Keep in sync with BASE_URL in shim/install.sh.
+	defaultBaseURL = "https://dotfish-cdn.isap.vn"
+	binName        = "dotfish"
 )
 
 // Run upgrades from currentVersion to the latest release (or the
-// DOTFILES_VERSION / DOTFILES_REPO overrides, same as the shim) and re-runs
+// DOTFILES_VERSION / DOTFILES_BASE_URL overrides, same as the shim) and re-runs
 // the new Installer's install with any extraArgs appended after --no-tui.
 func Run(currentVersion string, extraArgs []string) error {
-	repo := os.Getenv("DOTFILES_REPO")
-	if repo == "" {
-		repo = defaultRepo
+	baseURL := strings.TrimSuffix(os.Getenv("DOTFILES_BASE_URL"), "/")
+	if baseURL == "" {
+		baseURL = defaultBaseURL
 	}
 
 	// An explicit DOTFILES_VERSION skips the up-to-date check, which also
 	// serves as a forced re-install of that version.
 	target := os.Getenv("DOTFILES_VERSION")
 	if target == "" {
-		latest, err := latestTag(repo)
+		latest, err := latestVersion(baseURL)
 		if err != nil {
-			return fmt.Errorf("check latest release: %w", err)
+			return fmt.Errorf("check latest version: %w", err)
 		}
 		if currentVersion != "dev" &&
 			strings.TrimPrefix(latest, "v") == strings.TrimPrefix(currentVersion, "v") {
@@ -47,8 +50,8 @@ func Run(currentVersion string, extraArgs []string) error {
 		target = latest
 	}
 
-	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s_%s_%s",
-		repo, target, binName, runtime.GOOS, runtime.GOARCH)
+	url := fmt.Sprintf("%s/%s/%s_%s_%s",
+		baseURL, target, binName, runtime.GOOS, runtime.GOARCH)
 	fmt.Printf("→ downloading %s %s (%s/%s)\n", binName, target, runtime.GOOS, runtime.GOARCH)
 	bin, err := download(url)
 	if err != nil {
@@ -109,35 +112,44 @@ func copyFile(src, dst string) error {
 	return out.Close()
 }
 
-// latestTag resolves the release tag behind GitHub's /releases/latest
-// redirect, avoiding the rate-limited JSON API.
-func latestTag(repo string) (string, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-	resp, err := client.Get("https://github.com/" + repo + "/releases/latest")
+// latestVersion reads the rolling pointer the release workflow writes to the
+// bucket after the binaries land — a plain text file holding the tag, e.g.
+// "v1.2.3". Unlike GitHub's /releases/latest redirect it needs no auth, which
+// is the whole point of moving distribution off a private repo.
+func latestVersion(baseURL string) (string, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Get(baseURL + "/latest/VERSION")
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode < 300 || resp.StatusCode >= 400 {
-		return "", fmt.Errorf("unexpected response %s from %s/releases/latest", resp.Status, repo)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("fetch %s/latest/VERSION: %s", baseURL, resp.Status)
 	}
-	return tagFromLocation(resp.Header.Get("Location"))
+	// Bounded read: a misconfigured or unpublished bucket answers with an HTML
+	// error page, which should fail as a bad version rather than stream in.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 64))
+	if err != nil {
+		return "", err
+	}
+	return parseVersion(string(body))
 }
 
-// tagFromLocation extracts the version tag from a
-// .../releases/tag/vX.Y.Z redirect target. A repo with no releases redirects
-// to .../releases instead, which is reported as an error.
-func tagFromLocation(loc string) (string, error) {
-	tag := path.Base(loc)
-	if loc == "" || tag == "releases" || tag == "." || tag == "/" {
-		return "", fmt.Errorf("no release found (redirected to %q)", loc)
+var versionRE = regexp.MustCompile(`^v?[0-9]+(\.[0-9]+)*(-[0-9A-Za-z.]+)?$`)
+
+// parseVersion validates the pointer before it is interpolated into the
+// download URL. That value decides which binary gets fetched and executed, so
+// anything that is not a bare version tag is rejected — a value containing "/"
+// or ".." would otherwise repoint the download at an arbitrary bucket path.
+func parseVersion(s string) (string, error) {
+	v := strings.TrimSpace(s)
+	if v == "" {
+		return "", fmt.Errorf("no version published (empty pointer)")
 	}
-	return tag, nil
+	if !versionRE.MatchString(v) {
+		return "", fmt.Errorf("unexpected version pointer %q", v)
+	}
+	return v, nil
 }
 
 // download fetches url into a temp file, marks it executable, and returns its

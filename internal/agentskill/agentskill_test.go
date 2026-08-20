@@ -7,7 +7,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
 )
 
 func testManifest(t *testing.T) *manifest.Manifest {

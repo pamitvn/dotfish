@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
-	"github.com/anpmts/dotfiles-fish/internal/pkgmgr"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/pkgmgr"
 )
 
 // ConfigHome is $XDG_CONFIG_HOME, defaulting to ~/.config.

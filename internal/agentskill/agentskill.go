@@ -21,8 +21,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anpmts/dotfiles-fish/internal/install"
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/install"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
 )
 
 // Marker comments bounding the dotfish-owned region of a shared AGENTS.md.

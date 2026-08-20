@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
 	"github.com/charmbracelet/huh"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
 )
 
 // Options carries the install command's selection inputs.

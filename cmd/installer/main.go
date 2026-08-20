@@ -25,12 +25,12 @@ import (
 	"os"
 	"strings"
 
-	assets "github.com/anpmts/dotfiles-fish"
-	"github.com/anpmts/dotfiles-fish/internal/agentskill"
-	"github.com/anpmts/dotfiles-fish/internal/install"
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
-	"github.com/anpmts/dotfiles-fish/internal/selector"
-	"github.com/anpmts/dotfiles-fish/internal/upgrade"
+	assets "github.com/pamts/dotfiles-fish"
+	"github.com/pamts/dotfiles-fish/internal/agentskill"
+	"github.com/pamts/dotfiles-fish/internal/install"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/selector"
+	"github.com/pamts/dotfiles-fish/internal/upgrade"
 )
 
 // version is overridden at release time via -ldflags "-X main.version=...".

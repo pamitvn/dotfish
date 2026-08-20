@@ -6,7 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/anpmts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/manifest"
 )
 
 // TestWriteConfigSelectsModules verifies the core copy-then-strip behavior:
