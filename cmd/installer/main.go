@@ -6,6 +6,7 @@
 // Usage:
 //
 //	installer [install] [--modules a,b | --all | --none] [--no-tui]
+//	installer upgrade [install flags]
 //	installer doctor
 //	installer uninstall
 //	installer version
@@ -26,6 +27,7 @@ import (
 	"github.com/anpmts/dotfiles-fish/internal/install"
 	"github.com/anpmts/dotfiles-fish/internal/manifest"
 	"github.com/anpmts/dotfiles-fish/internal/selector"
+	"github.com/anpmts/dotfiles-fish/internal/upgrade"
 )
 
 // version is overridden at release time via -ldflags "-X main.version=...".
@@ -51,6 +53,8 @@ func run(args []string) error {
 	case "help", "--help", "-h":
 		usage()
 		return nil
+	case "upgrade":
+		return upgrade.Run(version, args)
 	}
 
 	man, err := manifest.Load(assets.ManifestTOML)
@@ -104,6 +108,9 @@ func usage() {
 
 Usage:
   installer [install] [flags]   install Core + the chosen Modules (default)
+  installer upgrade [flags]     fetch the latest release and re-install the
+                                prior Module subset (extra flags pass through
+                                to its install)
   installer doctor              verify deps resolve and conf.d sources cleanly
   installer uninstall           back up and remove the installed config
   installer version             print the version

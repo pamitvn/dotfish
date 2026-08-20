@@ -64,6 +64,7 @@ vendor install script where no package maps.
 
 ```
 installer [install] [flags]   install Core + the chosen Modules (default)
+installer upgrade [flags]     fetch the latest release, re-install prior subset
 installer doctor              verify deps resolve and conf.d sources cleanly
 installer uninstall           back up and remove the installed config
 installer version             print the version
@@ -79,6 +80,13 @@ The installed config is a **Snapshot copy** — plain copies, not links. Re-runn
 the Installer is the only way to update it; direct edits are overwritten on the
 next run. Machine-local secrets (`profile.local.fish`) are preserved across runs
 and backups.
+
+`installer upgrade` checks GitHub Releases for a newer Installer, downloads the
+matching binary, and hands off to its `install --no-tui`, re-installing your
+prior Module subset without a picker. Extra flags pass through to that install
+(e.g. `installer upgrade --all`). The shim's `DOTFILES_REPO` /
+`DOTFILES_VERSION` overrides are honored; setting `DOTFILES_VERSION` skips the
+up-to-date check and force-installs that version.
 
 Running with no TTY (piped) and no flags re-installs your previous subset
 (inferred from which snippets are present), or every Module on a first run.
@@ -107,6 +115,7 @@ Layout:
 | `internal/manifest/` | parses the Manifest |
 | `internal/selector/` | resolves the Module subset (picker / flags / inference) |
 | `internal/install/` | writes the Snapshot copy; `doctor` / `uninstall` |
+| `internal/upgrade/` | `upgrade` — fetch the latest release and hand off to it |
 | `internal/pkgmgr/` | host package-manager detection + dependency install |
 | `shim/install.sh` | the Install shim |
 | `tools/scaffold/` | maintainer helper for adding a new Module |
