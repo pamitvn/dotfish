@@ -1,5 +1,6 @@
 # 45-php-stack.fish — php-stack Module: shared helpers for the Docker-aware
-# artisan/composer Wrappers and the php-stack command. (Module metadata: modules.toml)
+# artisan/composer/vendor-bin Wrappers and the php-stack command. (Module
+# metadata: modules.toml)
 #
 # Stack identity (docker|local) is detected per project on the first Wrapper
 # call and remembered in a Stack record under ~/.cache/php-stack/. Container
@@ -227,6 +228,10 @@ function __php_stack_exec_docker
             __php_stack_compose $root exec $__php_stack_service php artisan $args
         case composer
             __php_stack_compose $root exec $__php_stack_service composer $args
+        case '*'
+            # Any other tool is a vendor binary; the compose service's
+            # working_dir is the app root, so the relative path resolves.
+            __php_stack_compose $root exec $__php_stack_service vendor/bin/$tool $args
     end
 end
 
@@ -248,6 +253,15 @@ function __php_stack_dispatch
             case artisan
                 echo "php-stack: not inside a PHP project (no compose file, composer.json, or artisan found upward of $PWD)" >&2
                 return 1
+            case '*'
+                # Vendor tools fall back to a global install outside a project,
+                # mirroring the composer behaviour.
+                if not command -q $tool
+                    echo "php-stack: not inside a PHP project and $tool is not installed globally" >&2
+                    return 127
+                end
+                command $tool $args
+                return
         end
     end
 
@@ -270,6 +284,24 @@ function __php_stack_dispatch
                         return 127
                     end
                     command composer $args
+                case '*'
+                    if not test -x "$root/vendor/bin/$tool"
+                        echo "php-stack: $root/vendor/bin/$tool not found — run composer install (or 'command $tool' for a global install)" >&2
+                        return 127
+                    end
+                    $root/vendor/bin/$tool $args
             end
     end
 end
+
+# Vendor-bin Wrappers: each tool in $php_stack_vendor_tools gets a Wrapper that
+# dispatches vendor/bin/<tool> on the project Stack (see also: vbin). Override
+# the list before this file loads (e.g. in a conf.d file sorting earlier) to
+# change which Wrappers are defined.
+set -q php_stack_vendor_tools; or set -g php_stack_vendor_tools pest phpunit pint phpstan
+for __php_stack_tool in $php_stack_vendor_tools
+    function $__php_stack_tool --inherit-variable __php_stack_tool --description "php-stack: $__php_stack_tool on the project Stack"
+        __php_stack_dispatch $__php_stack_tool $argv
+    end
+end
+set -e __php_stack_tool

@@ -90,13 +90,14 @@ paru = "docker"
 [[module]]
 name = "php-stack"
 order = 45
-description = "Docker-aware artisan/composer wrappers (php-stack)"
+description = "Docker-aware artisan/composer/vendor-bin wrappers (php-stack)"
 default = true
 files = [
   "fish/conf.d/45-php-stack.fish",
   "fish/functions/artisan.fish",
   "fish/functions/composer.fish",
   "fish/functions/php-stack.fish",
+  "fish/functions/vbin.fish",
 ]
 [module.dep]
 check = "php"
