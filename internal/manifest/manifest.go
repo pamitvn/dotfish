@@ -21,6 +21,13 @@ type Dep struct {
 	// Install is an optional vendor install script, run when no Packages entry
 	// maps to the detected package manager.
 	Install string `toml:"install"`
+	// Optional marks a dependency the Installer never installs on its own.
+	// The Module's files are written either way; the dependency is installed
+	// only when the user opts in (`--with-deps <module>`, or the picker's
+	// confirm on a TTY). Use it where the Module is genuinely useful without
+	// the host tool — php-stack's `php` is only needed by local-Stack
+	// projects, never by docker ones.
+	Optional bool `toml:"optional"`
 }
 
 // CheckCmd returns the command used to detect presence, defaulting to name.
@@ -94,6 +101,18 @@ func (m *Manifest) Defaults() []string {
 	var out []string
 	for _, mod := range m.Modules {
 		if mod.Default {
+			out = append(out, mod.Name)
+		}
+	}
+	return out
+}
+
+// Optionals returns the names of Modules whose dependency is opt-in, in load
+// order. These are the names accepted by `dotfish install --with-deps`.
+func (m *Manifest) Optionals() []string {
+	var out []string
+	for _, mod := range m.Modules {
+		if mod.Dep.Optional {
 			out = append(out, mod.Name)
 		}
 	}

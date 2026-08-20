@@ -3,14 +3,16 @@
 # Module names come live from `dotfish modules` (the binary's embedded
 # Manifest), so they never drift from what the CLI actually accepts.
 
-# Complete the comma-separated --modules value: keep everything up to the
-# last comma, offer each not-yet-listed Module after it. (fish's own
-# __fish_complete_list is broken under BSD sed, so this is hand-rolled.)
+# Complete a comma-separated Module list (--modules, --with-deps): keep
+# everything up to the last comma, offer each not-yet-listed Module after it.
+# (fish's own __fish_complete_list is broken under BSD sed, so this is
+# hand-rolled.) Any argv is passed to `dotfish modules` to narrow the source
+# list — e.g. --optional for the Modules --with-deps accepts.
 function __dotfish_modules_complete
     set -l tok (commandline -t)
     set -l prefix (string replace -r '[^,]*$' '' -- $tok)
     set -l chosen (string split , -- $prefix)
-    for line in (dotfish modules 2>/dev/null)
+    for line in (dotfish modules $argv 2>/dev/null)
         set -l parts (string split -m1 \t -- $line)
         contains -- $parts[1] $chosen; and continue
         printf '%s%s\t%s\n' $prefix $parts[1] $parts[2]
@@ -36,9 +38,14 @@ complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a help -d 'show 
 set -l selecting "not __fish_seen_subcommand_from doctor uninstall modules agent version help"
 complete -c dotfish -n $selecting -l modules -x -d 'comma-separated Modules to install' \
     -a '(__dotfish_modules_complete)'
+complete -c dotfish -n $selecting -l with-deps -x -d "install these Modules' opt-in dependencies" \
+    -a '(__dotfish_modules_complete --optional)'
 complete -c dotfish -n $selecting -l all -d 'install every Module'
 complete -c dotfish -n $selecting -l none -d 'install only Core'
 complete -c dotfish -n $selecting -l no-tui -d 'never show the picker'
+
+complete -c dotfish -n "__fish_seen_subcommand_from modules" -l optional \
+    -d 'list only Modules with an opt-in dependency'
 
 # Agent flags: which AI-coding-agent context files to (re)write.
 complete -c dotfish -n "__fish_seen_subcommand_from agent" -l providers -x \

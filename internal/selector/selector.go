@@ -10,11 +10,13 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/pamts/dotfiles-fish/internal/manifest"
+	"github.com/pamts/dotfiles-fish/internal/pkgmgr"
 )
 
 // Options carries the install command's selection inputs.
 type Options struct {
 	Explicit  []string // --modules a,b,c (explicit wins over everything)
+	WithDeps  []string // --with-deps a,b (allow these Modules' opt-in deps)
 	All       bool     // --all
 	None      bool     // --none (Core only)
 	NoTUI     bool     // --no-tui (never show the picker)
@@ -53,6 +55,73 @@ func Resolve(m *manifest.Manifest, o Options) ([]string, error) {
 		return inferred, nil
 	}
 	return m.Names(), nil
+}
+
+// OptionalDeps decides which of the selected Modules may install their opt-in
+// dependency (Dep.Optional). The default is always no:
+//   - --with-deps names allow it outright (and must name selected Modules that
+//     actually have an opt-in dependency).
+//   - Otherwise on a TTY, each remaining Module whose dependency is missing
+//     gets one confirm, defaulting to skip.
+//   - Piped or --no-tui, nothing more is allowed — silence means skip.
+func OptionalDeps(m *manifest.Manifest, selected []string, o Options) ([]string, error) {
+	sel := make(map[string]bool, len(selected))
+	for _, n := range selected {
+		sel[n] = true
+	}
+
+	allowed := make(map[string]bool, len(o.WithDeps))
+	var out []string
+	for _, name := range o.WithDeps {
+		mod, ok := m.ByName(name)
+		switch {
+		case !ok:
+			return nil, fmt.Errorf("unknown Module %q in --with-deps (known: %s)", name, strings.Join(m.Names(), " "))
+		case !mod.Dep.Optional:
+			return nil, fmt.Errorf("Module %q has no opt-in dependency — --with-deps takes: %s", name, strings.Join(m.Optionals(), " "))
+		case !sel[name]:
+			return nil, fmt.Errorf("--with-deps %s: that Module is not being installed", name)
+		case allowed[name]:
+			continue
+		}
+		allowed[name] = true
+		out = append(out, name)
+	}
+
+	if o.NoTUI || !isTTY() {
+		return out, nil
+	}
+	for _, mod := range m.Modules {
+		check := mod.Dep.CheckCmd(mod.Name)
+		if !sel[mod.Name] || !mod.Dep.Optional || allowed[mod.Name] || pkgmgr.Has(check) {
+			continue
+		}
+		yes, err := confirmDep(mod, check)
+		if err != nil {
+			return nil, err
+		}
+		if yes {
+			allowed[mod.Name] = true
+			out = append(out, mod.Name)
+		}
+	}
+	return out, nil
+}
+
+func confirmDep(mod manifest.Module, check string) (bool, error) {
+	var yes bool
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title(fmt.Sprintf("%s: install %s on this machine?", mod.Name, check)).
+			Description(fmt.Sprintf("Optional — skip it unless you need it.\nYou can add it later: dotfish install --with-deps %s", mod.Name)).
+			Affirmative("install").
+			Negative("skip").
+			Value(&yes),
+	))
+	if err := form.Run(); err != nil {
+		return false, fmt.Errorf("optional dependency prompt cancelled: %w", err)
+	}
+	return yes, nil
 }
 
 func isTTY() bool {

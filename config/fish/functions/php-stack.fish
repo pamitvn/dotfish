@@ -27,6 +27,9 @@ function php-stack --description 'Inspect or redetect the project Stack record'
             else
                 echo "reality: no compose file → local"
             end
+            if not command -q php
+                echo "php:     not installed (optional dependency) — add it with 'dotfish install --with-deps php-stack'"
+            end
         case redetect
             if test -z "$root"
                 echo "php-stack: not inside a PHP project" >&2

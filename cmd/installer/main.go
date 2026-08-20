@@ -5,7 +5,7 @@
 //
 // Usage:
 //
-//	dotfish [install] [--modules a,b | --all | --none] [--no-tui]
+//	dotfish [install] [--modules a,b | --all | --none] [--with-deps a,b] [--no-tui]
 //	dotfish upgrade [install flags]
 //	dotfish doctor
 //	dotfish uninstall
@@ -76,7 +76,11 @@ func run(args []string) error {
 		if err != nil {
 			return err
 		}
-		return install.Run(man, assets.ConfigFS, selected)
+		optIn, err := selector.OptionalDeps(man, selected, opts)
+		if err != nil {
+			return err
+		}
+		return install.Run(man, assets.ConfigFS, selected, optIn)
 	case "doctor":
 		return install.Doctor(man)
 	case "uninstall":
@@ -84,7 +88,12 @@ func run(args []string) error {
 	case "modules":
 		// "name<TAB>description" per line — consumed by the fish completions
 		// (Core's completions/dotfish.fish) and readable enough for humans.
+		// --optional narrows it to the Modules --with-deps accepts.
+		onlyOptional := len(args) > 0 && args[0] == "--optional"
 		for _, mod := range man.Modules {
+			if onlyOptional && !mod.Dep.Optional {
+				continue
+			}
 			fmt.Printf("%s\t%s\n", mod.Name, mod.Description)
 		}
 		return nil
@@ -98,9 +107,10 @@ func run(args []string) error {
 
 func parseInstallFlags(args []string) (selector.Options, error) {
 	fs := flag.NewFlagSet("install", flag.ContinueOnError)
-	var modules string
+	var modules, withDeps string
 	var o selector.Options
 	fs.StringVar(&modules, "modules", "", "comma-separated Modules to install (e.g. eza,bat,starship)")
+	fs.StringVar(&withDeps, "with-deps", "", "comma-separated Modules whose opt-in dependency to install (e.g. php-stack)")
 	fs.BoolVar(&o.All, "all", false, "install every Module")
 	fs.BoolVar(&o.None, "none", false, "install only Core")
 	fs.BoolVar(&o.NoTUI, "no-tui", false, "never show the interactive picker")
@@ -110,6 +120,11 @@ func parseInstallFlags(args []string) (selector.Options, error) {
 	for _, m := range strings.Split(modules, ",") {
 		if m = strings.TrimSpace(m); m != "" {
 			o.Explicit = append(o.Explicit, m)
+		}
+	}
+	for _, m := range strings.Split(withDeps, ",") {
+		if m = strings.TrimSpace(m); m != "" {
+			o.WithDeps = append(o.WithDeps, m)
 		}
 	}
 	return o, nil
@@ -125,13 +140,18 @@ Usage:
                               to its install)
   dotfish doctor              verify deps resolve and conf.d sources cleanly
   dotfish uninstall           back up and remove the installed config
-  dotfish modules             list selectable Modules (name + description)
+  dotfish modules [--optional]
+                              list selectable Modules (name + description);
+                              --optional lists only those with an opt-in
+                              dependency (the --with-deps values)
   dotfish agent [flags]       publish the installed Modules' usage guides as
                               context for AI coding agents
   dotfish version             print the version
 
 Install flags:
   --modules a,b,c   install exactly these Modules
+  --with-deps a,b   also install these Modules' opt-in dependencies (skipped
+                    by default; e.g. --with-deps php-stack for native PHP)
   --all             install every Module
   --none            install only Core
   --no-tui          never show the picker (use flags / inference instead)

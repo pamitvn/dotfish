@@ -59,3 +59,33 @@ func TestWriteConfigSelectsModules(t *testing.T) {
 		}
 	}
 }
+
+// TestEnsureDepsSkipsOptIn verifies the opt-in dependency policy: a missing
+// Dep.Optional dependency is skipped (never installed) unless its Module is in
+// the opt-in list, while a non-optional Module that is not selected is ignored
+// as before. Neither path may shell out to the package manager.
+func TestEnsureDepsSkipsOptIn(t *testing.T) {
+	man := &manifest.Manifest{Modules: []manifest.Module{
+		{
+			Name: "php-stack", Order: 45,
+			Dep: manifest.Dep{
+				Check:    "dotfish-absent-php-xyz",
+				Optional: true,
+				Packages: map[string]string{"brew": "php", "paru": "php"},
+			},
+		},
+		{
+			Name: "unselected", Order: 50,
+			Dep: manifest.Dep{Check: "dotfish-absent-tool-xyz"},
+		},
+	}}
+
+	// Selected but not opted in: skipped, so no install is attempted.
+	if err := ensureDeps(man, []string{"php-stack"}, nil); err != nil {
+		t.Fatalf("ensureDeps skipping an opt-in dep: %v", err)
+	}
+	// Opting in a Module that is not selected must not install anything either.
+	if err := ensureDeps(man, nil, []string{"php-stack"}); err != nil {
+		t.Fatalf("ensureDeps with nothing selected: %v", err)
+	}
+}

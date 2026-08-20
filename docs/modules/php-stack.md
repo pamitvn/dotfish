@@ -9,7 +9,14 @@ caring which kind of project you're standing in.
 ## Get it / remove it
 
 Install: picked by default in the `dotfish` picker, or explicitly with
-`dotfish --modules php-stack,...`. It installs `php` as its dependency.
+`dotfish --modules php-stack,...`. Its dependency, native `php`, is **opt-in**
+and is not installed unless you ask for it — a docker-Stack project runs
+everything inside its compose service, so a Docker-only machine needs no host
+PHP at all. Say yes at the picker's prompt, or:
+
+```sh
+dotfish install --with-deps php-stack    # also installs php (brew/paru)
+```
 Remove: re-run `dotfish` and deselect it (or pass `--modules ...` without it) —
 its snippet and the `artisan`, `composer`, `php-stack`, and `vbin` functions go
 away together.
@@ -46,7 +53,10 @@ detects the Stack:
   `docker-compose.dev.yml`) work too: a single variant is used as-is, an
   exported `COMPOSE_FILE` naming one settles a tie, and otherwise you're asked
   which file the project uses.
-- No compose file means **local**.
+- No compose file means **local**. A local Stack is the one case that needs
+  native `php` on your machine; without it every dispatch stops with
+  `php-stack: no php on this machine, and this project's Stack is local` and
+  tells you how to add it.
 
 The answer is remembered as a **Stack record** under `~/.cache/php-stack/` —
 per machine, never inside the project — so later calls don't re-detect. The
@@ -87,6 +97,17 @@ reality: compose file present → docker
 $ php-stack redetect           # e.g. after the compose service was renamed
 ```
 
+`php-stack status` also flags a missing native `php`, since it is an opt-in
+dependency:
+
+```
+$ php-stack
+project: /Users/you/code/little-cli
+record:  stack=local
+reality: no compose file → local
+php:     not installed (optional dependency) — add it with 'dotfish install --with-deps php-stack'
+```
+
 Outside any PHP project, `composer` and the vendor-tool Wrappers pass through
 to a globally installed tool (or refuse with an error if there is none), and
 `artisan` explains that no project was found.
@@ -106,6 +127,10 @@ to a globally installed tool (or refuse with an error if there is none), and
 - **Bypass a Wrapper once**: `command composer ...` (or `command pest ...`)
   runs the global tool directly, skipping Stack dispatch.
 - **Missing tools**: the Wrappers themselves always load, but each dispatch
-  checks what it needs and fails with a clear `php-stack:` message — e.g.
-  composer not installed on a local Stack, `vendor/bin/<tool>` missing (run
-  `composer install`), or the compose service not running.
+  checks what it needs and fails with a clear `php-stack:` message — e.g. no
+  native `php` on a local Stack, composer not installed on a local Stack,
+  `vendor/bin/<tool>` missing (run `composer install`), or the compose service
+  not running.
+- **Add native PHP later**: `dotfish install --with-deps php-stack` (it
+  re-installs your existing Module subset and adds the dependency). Nothing
+  removes it again — that is your package manager's job (`brew uninstall php`).

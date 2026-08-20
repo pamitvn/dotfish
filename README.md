@@ -58,7 +58,7 @@ dependency to the config files it owns; deselecting a Module installs neither.
 | `ugrep` | Replace the grep family with ugrep | ✓ |
 | `rustup` | Rust toolchain via rustup (cargo env) | ✓ |
 | `docker` | Docker helpers and completions | ✓ |
-| `php-stack` | Docker-aware `artisan`/`composer`/`vendor/bin` wrappers | ✓ |
+| `php-stack` | Docker-aware `artisan`/`composer`/`vendor/bin` wrappers | ✓ (native PHP opt-in) |
 | `pnpm` | pnpm on `PATH`; enforce it over npm/yarn/bun | ✓ |
 | `starship` | Starship cross-shell prompt | ✓ |
 | `asdf` | asdf version manager | ✓ |
@@ -68,6 +68,17 @@ The Installer installs each chosen Module's dependency through your host package
 manager (Homebrew on macOS; otherwise paru/yay/pacman/apt/dnf), falling back to a
 vendor install script where no package maps.
 
+Some dependencies are **opt-in** and are never installed on their own — the
+Module's files land either way. `php-stack` is one: its wrappers run everything
+inside a project's compose service, so a Docker-only machine needs no native
+PHP. On a TTY the picker asks once (defaulting to skip); otherwise say yes
+explicitly:
+
+```sh
+dotfish install --with-deps php-stack    # also `brew install php`
+dotfish modules --optional               # which Modules take --with-deps
+```
+
 ## Installer commands
 
 ```
@@ -75,13 +86,17 @@ dotfish [install] [flags]   install Core + the chosen Modules (default)
 dotfish upgrade [flags]     fetch the latest release, re-install prior subset
 dotfish doctor              verify deps resolve and conf.d sources cleanly
 dotfish uninstall           back up and remove the installed config
-dotfish modules             list selectable Modules (name + description)
+dotfish modules [--optional]
+                            list selectable Modules (name + description);
+                            --optional lists only those with an opt-in dep
 dotfish agent [flags]       publish the installed Modules' usage guides as
                             context for AI coding agents
 dotfish version             print the version
 
 Install flags:
   --modules a,b,c   install exactly these Modules
+  --with-deps a,b   also install these Modules' opt-in dependencies (skipped
+                    by default; e.g. --with-deps php-stack for native PHP)
   --all             install every Module
   --none            install only Core
   --no-tui          never show the picker (use flags / inference instead)

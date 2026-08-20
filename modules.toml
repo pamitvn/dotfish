@@ -17,6 +17,10 @@
 #       [module.dep.packages]  per-package-manager package name (brew, paru, ...)
 #       install             optional vendor install script, used when no package
 #                           name maps to the detected package manager
+#       optional            true = never installed on its own; the Module's
+#                           files are still written, and the dependency is
+#                           installed only on opt-in (--with-deps <name>, or
+#                           the picker's confirm on a TTY)
 
 [[module]]
 name = "eza"
@@ -100,8 +104,13 @@ files = [
   "fish/functions/php-stack.fish",
   "fish/functions/vbin.fish",
 ]
+# The wrappers are useful with no host PHP at all: a docker-Stack project runs
+# everything inside its compose service. So native PHP is opt-in — install it
+# with `dotfish install --with-deps php-stack` when you have local-Stack
+# projects.
 [module.dep]
 check = "php"
+optional = true
 [module.dep.packages]
 brew = "php"
 paru = "php"

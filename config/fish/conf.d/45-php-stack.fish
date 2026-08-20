@@ -235,6 +235,16 @@ function __php_stack_exec_docker
     end
 end
 
+# Native PHP is an opt-in dependency of this Module (see modules.toml), so a
+# local-Stack dispatch can legitimately find no php at all. Say so plainly
+# instead of leaking "env: php: No such file or directory".
+function __php_stack_require_php
+    command -q php; and return 0
+    echo "php-stack: no php on this machine, and this project's Stack is local" >&2
+    echo "php-stack: install it with 'dotfish install --with-deps php-stack', or run the project on docker" >&2
+    return 127
+end
+
 # Entry point shared by the artisan/composer Wrappers.
 function __php_stack_dispatch
     set -l tool $argv[1]
@@ -277,18 +287,21 @@ function __php_stack_dispatch
                         echo "php-stack: $root has no artisan script" >&2
                         return 1
                     end
+                    __php_stack_require_php; or return 127
                     php $root/artisan $args
                 case composer
                     if not command -q composer
                         echo "php-stack: composer is not installed on this machine" >&2
                         return 127
                     end
+                    __php_stack_require_php; or return 127
                     command composer $args
                 case '*'
                     if not test -x "$root/vendor/bin/$tool"
                         echo "php-stack: $root/vendor/bin/$tool not found — run composer install (or 'command $tool' for a global install)" >&2
                         return 127
                     end
+                    __php_stack_require_php; or return 127
                     $root/vendor/bin/$tool $args
             end
     end

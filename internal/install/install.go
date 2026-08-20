@@ -30,11 +30,13 @@ func ConfigHome() string {
 func FishDir() string { return filepath.Join(ConfigHome(), "fish") }
 
 // Run performs a full install of the selected Modules (Core always included).
-func Run(man *manifest.Manifest, cfg fs.FS, selected []string) error {
+// optIn names the selected Modules whose opt-in dependency (Dep.Optional) the
+// user allowed; every other opt-in dependency is left uninstalled.
+func Run(man *manifest.Manifest, cfg fs.FS, selected, optIn []string) error {
 	if err := ensureFish(); err != nil {
 		return err
 	}
-	if err := ensureDeps(man, selected); err != nil {
+	if err := ensureDeps(man, selected, optIn); err != nil {
 		return err
 	}
 	if err := writeConfig(cfg, man, selected); err != nil {
@@ -59,10 +61,12 @@ func ensureFish() error {
 }
 
 // ensureDeps installs each selected Module's dependency: skip if already
-// present; use the mapped package name for the detected manager; otherwise fall
-// back to the Module's vendor install script.
-func ensureDeps(man *manifest.Manifest, selected []string) error {
+// present; skip an opt-in dependency the user did not allow; use the mapped
+// package name for the detected manager; otherwise fall back to the Module's
+// vendor install script.
+func ensureDeps(man *manifest.Manifest, selected, optIn []string) error {
 	sel := toSet(selected)
+	allowed := toSet(optIn)
 	mgr, mgrErr := pkgmgr.Detect()
 	for _, mod := range man.Modules {
 		if !sel[mod.Name] {
@@ -71,6 +75,13 @@ func ensureDeps(man *manifest.Manifest, selected []string) error {
 		check := mod.Dep.CheckCmd(mod.Name)
 		if pkgmgr.Has(check) {
 			ok(check)
+			continue
+		}
+		// An opt-in dependency is never installed by default: the Module's
+		// files still land, so the config works without the host tool.
+		if mod.Dep.Optional && !allowed[mod.Name] {
+			skip(fmt.Sprintf("%s not installed (%s, optional) — add it later with: dotfish install --with-deps %s",
+				check, mod.Name, mod.Name))
 			continue
 		}
 
@@ -219,9 +230,14 @@ func Doctor(man *manifest.Manifest) error {
 	for _, name := range inst {
 		mod, _ := man.ByName(name)
 		check := mod.Dep.CheckCmd(mod.Name)
-		if pkgmgr.Has(check) {
+		switch {
+		case pkgmgr.Has(check):
 			ok(fmt.Sprintf("%s (%s)", check, name))
-		} else {
+		case mod.Dep.Optional:
+			// Opt-in and absent is a choice, not a fault — don't fail doctor.
+			skip(fmt.Sprintf("%s not on PATH (Module %s, optional) — install it with: dotfish install --with-deps %s",
+				check, name, name))
+		default:
 			errf(fmt.Sprintf("%s missing from PATH (Module %s)", check, name))
 			good = false
 		}
@@ -299,6 +315,7 @@ func toSet(xs []string) map[string]bool {
 }
 
 func logf(s string) { fmt.Println("→ " + s) }
+func skip(s string) { fmt.Println("○ " + s) }
 func ok(s string)   { fmt.Println("✓ " + s) }
 func warn(s string) { fmt.Fprintln(os.Stderr, "⚠ "+s) }
 func errf(s string) { fmt.Fprintln(os.Stderr, "✗ "+s) }
