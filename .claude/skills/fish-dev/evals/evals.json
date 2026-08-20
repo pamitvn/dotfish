@@ -1,0 +1,23 @@
+{
+  "skill_name": "fish-dev",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Write me a fish function `mkcd` that makes a directory (including parents) and cds into it. Put it wherever it belongs in this repo.",
+      "expected_output": "config/fish/functions/mkcd.fish with header comment (usage + rationale), --description, argparse or clean arg handling, meaningful return codes, and correct ownership (Core shared functions or an explicit note about modules.toml).",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "Can you add tab completions for the `dotfish` CLI's new `upgrade --channel` flag? It takes stable or nightly.",
+      "expected_output": "Edits config/fish/completions/dotfish.fish in its existing style (complete -c with conditions), rather than generating or creating a new mechanism; syntax-checked with fish -n.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "I keep typing `npm run dev` out of habit. Make the shell nudge me to pnpm instead — but let me override it per-machine like only-pnpm does.",
+      "expected_output": "Extends or mirrors the only-pnpm pattern (function shadowing npm, machine-local opt-out variable, quiet pass-through when appropriate), placed in the pnpm Module's owned files with modules.toml updated if a file is added.",
+      "files": []
+    }
+  ]
+}

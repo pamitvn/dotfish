@@ -19,3 +19,10 @@ var ManifestTOML []byte
 //
 //go:embed all:config
 var ConfigFS embed.FS
+
+// ModuleDocsFS carries the end-user usage guide for each Module
+// (docs/modules/<name>.md). `dotfish agent` re-publishes the installed
+// subset as context files for AI coding agents.
+//
+//go:embed docs/modules
+var ModuleDocsFS embed.FS

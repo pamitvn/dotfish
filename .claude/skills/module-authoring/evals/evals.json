@@ -1,0 +1,23 @@
+{
+  "skill_name": "module-authoring",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Add zoxide to my dotfiles so it's installed by default and replaces cd. It should work on both my Mac and my Arch box.",
+      "expected_output": "A new conf.d snippet (NN-zoxide.fish) with a type -q guard and zoxide init, a [[module]] entry in modules.toml with matching order/prefix, brew+paru package names, default = true, and completions registration if applicable.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I want fzf in the installer but NOT pre-selected — it should be opt-in in the picker. Wire up its fish keybindings and completions too.",
+      "expected_output": "Module with default = false, conf.d snippet guarded by type -q fzf that sets up fzf keybindings, completions handled via __dotfish_completion_tools or fzf's own mechanism, correct order below 95, manifest files list matching disk.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "add a module for jq. theres no config needed really, i just want the installer to make sure jq is present on new machines",
+      "expected_output": "Recognizes a dependency-only Module still needs a (possibly minimal) owned file per the manifest convention, or explicitly reasons about the edge case; manifest entry with check = jq and both package managers; does not dump logic into Core.",
+      "files": []
+    }
+  ]
+}

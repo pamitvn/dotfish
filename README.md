@@ -76,6 +76,8 @@ dotfish upgrade [flags]     fetch the latest release, re-install prior subset
 dotfish doctor              verify deps resolve and conf.d sources cleanly
 dotfish uninstall           back up and remove the installed config
 dotfish modules             list selectable Modules (name + description)
+dotfish agent [flags]       publish the installed Modules' usage guides as
+                            context for AI coding agents
 dotfish version             print the version
 
 Install flags:
@@ -83,6 +85,13 @@ Install flags:
   --all             install every Module
   --none            install only Core
   --no-tui          never show the picker (use flags / inference instead)
+
+Agent flags:
+  --providers a,b   targets to write (default claude,agents):
+                    claude → ~/.claude/skills/dotfish/SKILL.md
+                    agents → ~/.codex/AGENTS.md (merged between markers,
+                    surrounding content preserved)
+  --all             include every Module, not just the installed subset
 ```
 
 The installed config is a **Snapshot copy** — plain copies, not links. Re-running

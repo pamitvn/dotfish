@@ -10,6 +10,7 @@
 //	dotfish doctor
 //	dotfish uninstall
 //	dotfish modules
+//	dotfish agent [--providers claude,agents | --all]
 //	dotfish version
 //
 // With no flags on a TTY, `install` shows an interactive picker. Piped (no
@@ -25,6 +26,7 @@ import (
 	"strings"
 
 	assets "github.com/anpmts/dotfiles-fish"
+	"github.com/anpmts/dotfiles-fish/internal/agentskill"
 	"github.com/anpmts/dotfiles-fish/internal/install"
 	"github.com/anpmts/dotfiles-fish/internal/manifest"
 	"github.com/anpmts/dotfiles-fish/internal/selector"
@@ -86,6 +88,8 @@ func run(args []string) error {
 			fmt.Printf("%s\t%s\n", mod.Name, mod.Description)
 		}
 		return nil
+	case "agent":
+		return agentskill.Run(man, assets.ModuleDocsFS, args)
 	default:
 		usage()
 		return fmt.Errorf("unknown command: %s", cmd)
@@ -122,6 +126,8 @@ Usage:
   dotfish doctor              verify deps resolve and conf.d sources cleanly
   dotfish uninstall           back up and remove the installed config
   dotfish modules             list selectable Modules (name + description)
+  dotfish agent [flags]       publish the installed Modules' usage guides as
+                              context for AI coding agents
   dotfish version             print the version
 
 Install flags:
@@ -129,5 +135,11 @@ Install flags:
   --all             install every Module
   --none            install only Core
   --no-tui          never show the picker (use flags / inference instead)
+
+Agent flags:
+  --providers a,b   targets to write (default claude,agents):
+                    claude → ~/.claude/skills/dotfish/SKILL.md
+                    agents → ~/.codex/AGENTS.md (merged between markers)
+  --all             include every Module, not just the installed subset
 `)
 }

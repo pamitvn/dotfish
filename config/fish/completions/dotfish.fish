@@ -17,7 +17,7 @@ function __dotfish_modules_complete
     end
 end
 
-set -l cmds install upgrade doctor uninstall modules version help
+set -l cmds install upgrade doctor uninstall modules agent version help
 
 complete -c dotfish -f
 
@@ -26,14 +26,21 @@ complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a upgrade -d 'fe
 complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a doctor -d 'verify deps resolve and conf.d sources cleanly'
 complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a uninstall -d 'back up and remove the installed config'
 complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a modules -d 'list selectable Modules'
+complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a agent -d 'publish Module guides for AI coding agents'
 complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a version -d 'print the version'
 complete -c dotfish -n "not __fish_seen_subcommand_from $cmds" -a help -d 'show usage'
 
 # Selection flags apply to `install` (also the bare default command) and pass
-# through `upgrade` to the new binary's install.
-set -l selecting "not __fish_seen_subcommand_from doctor uninstall modules version help"
+# through `upgrade` to the new binary's install. `agent` has its own flags, so
+# it is excluded here alongside the flagless commands.
+set -l selecting "not __fish_seen_subcommand_from doctor uninstall modules agent version help"
 complete -c dotfish -n $selecting -l modules -x -d 'comma-separated Modules to install' \
     -a '(__dotfish_modules_complete)'
 complete -c dotfish -n $selecting -l all -d 'install every Module'
 complete -c dotfish -n $selecting -l none -d 'install only Core'
 complete -c dotfish -n $selecting -l no-tui -d 'never show the picker'
+
+# Agent flags: which AI-coding-agent context files to (re)write.
+complete -c dotfish -n "__fish_seen_subcommand_from agent" -l providers -x \
+    -a 'claude agents claude,agents' -d 'targets: claude, agents'
+complete -c dotfish -n "__fish_seen_subcommand_from agent" -l all -d 'include every Module'

@@ -15,6 +15,9 @@ config.fish.bk
 # Local-only tool state
 .claude/settings.local.json
 
+# Skill-development workspaces (eval runs, iteration outputs — not part of the skills)
+.claude/skills/*-workspace/
+
 # Machine-local secrets (templated by profile.local.fish.example, installed to
 # ~/.config/fish/profile.local.fish). Never vendor a real one in the Build source.
 config/fish/profile.local.fish
