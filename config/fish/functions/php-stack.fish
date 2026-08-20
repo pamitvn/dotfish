@@ -20,7 +20,10 @@ function php-stack --description 'Inspect or redetect the project Stack record'
             else
                 echo "record:  none (first artisan/composer call will detect)"
             end
-            if __php_stack_compose_file $root >/dev/null
+            set -l running_file (__php_stack_running_config $root)
+            if test -n "$running_file"
+                echo "reality: running compose project launched from $running_file → docker"
+            else if __php_stack_compose_file $root >/dev/null
                 echo "reality: compose file present → docker"
             else if test (count (__php_stack_compose_variants $root)) -gt 0
                 echo "reality: non-canonical compose file(s) present → docker (file picked at first call)"

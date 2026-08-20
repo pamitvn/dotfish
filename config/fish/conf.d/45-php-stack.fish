@@ -13,10 +13,13 @@ set -g __php_stack_cache_dir ~/.cache/php-stack
 # in the project's compose services.
 set -g __php_stack_service_candidates app php laravel.test workspace
 
-# Print the canonical compose file in <dir>, if any. Canonical names are the
-# ones `docker compose` resolves natively (override files merge on their own).
+# Compose file names `docker compose` resolves natively (override files merge
+# on their own). Anything else is a variant needing an explicit -f.
+set -g __php_stack_canonical_names docker-compose.yml docker-compose.yaml compose.yml compose.yaml
+
+# Print the canonical compose file in <dir>, if any.
 function __php_stack_compose_file
-    for name in docker-compose.yml docker-compose.yaml compose.yml compose.yaml
+    for name in $__php_stack_canonical_names
         if test -f "$argv[1]/$name"
             echo "$argv[1]/$name"
             return 0
@@ -30,10 +33,31 @@ end
 function __php_stack_compose_variants
     for f in $argv[1]/*compose*.yml $argv[1]/*compose*.yaml
         set -l name (path basename -- $f)
-        if not contains -- $name docker-compose.yml docker-compose.yaml compose.yml compose.yaml
+        if not contains -- $name $__php_stack_canonical_names
             echo $name
         end
     end
+end
+
+# Reality probe: if a compose project named after <dir> is already running,
+# print the basename of the first config file it was launched from that lives
+# in <dir>. A project can be up via a variant (docker-compose.traefik.yml)
+# while a canonical docker-compose.yml describes an unused stack — the running
+# containers' labels are the ground truth, not filename conventions.
+function __php_stack_running_config
+    command -q docker; or return 1
+    set -l proj (string lower -- (path basename -- $argv[1]))
+    set -l labels (docker ps --filter label=com.docker.compose.project=$proj \
+        --format '{{.Label "com.docker.compose.project.config_files"}}' 2>/dev/null)
+    for label in $labels
+        for f in (string split , -- $label)
+            if test (path dirname -- $f) = "$argv[1]"
+                path basename -- $f
+                return 0
+            end
+        end
+    end
+    return 1
 end
 
 # True when <dir> has any compose file at all, canonical or variant.
@@ -109,7 +133,15 @@ function __php_stack_detect
     set -g __php_stack_file ''
 
     set -l has_compose 0
-    if __php_stack_compose_file $root >/dev/null
+    set -l running_file (__php_stack_running_config $root)
+    if test -n "$running_file"
+        # A stack for this project is already running: bind to the file it was
+        # actually launched from (canonical files need no -f, so no record).
+        if not contains -- $running_file $__php_stack_canonical_names
+            set -g __php_stack_file $running_file
+        end
+        set has_compose 1
+    else if __php_stack_compose_file $root >/dev/null
         # Canonical file: let docker compose resolve it (and overrides) natively.
         set has_compose 1
     else

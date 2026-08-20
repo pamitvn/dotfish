@@ -46,9 +46,13 @@ call inside a project, the Module walks up from your current directory to the
 nearest project marker (a compose file, `composer.json`, or `artisan`) and
 detects the Stack:
 
-- A compose file present means **docker**. The PHP service is auto-picked when
-  it's obviously one of `app`, `php`, `laravel.test`, or `workspace` (or the
-  only service); otherwise you're prompted once.
+- A compose stack for the project **already running** settles it: detection
+  reads the running containers' compose labels and binds to the exact file the
+  stack was launched from — even a variant like `docker-compose.traefik.yml`
+  sitting next to an unused canonical `docker-compose.yml`.
+- Otherwise, a compose file present means **docker**. The PHP service is
+  auto-picked when it's obviously one of `app`, `php`, `laravel.test`, or
+  `workspace` (or the only service); otherwise you're prompted once.
 - Projects with only a non-canonical compose file (e.g.
   `docker-compose.dev.yml`) work too: a single variant is used as-is, an
   exported `COMPOSE_FILE` naming one settles a tie, and otherwise you're asked
