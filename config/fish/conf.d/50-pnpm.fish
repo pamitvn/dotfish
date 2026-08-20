@@ -19,3 +19,6 @@ if status --is-interactive
         only-pnpm on -q
     end
 end
+
+# Register for generated completions (collected by Core's 95-completions.fish).
+set -ga __dotfish_completion_tools pnpm

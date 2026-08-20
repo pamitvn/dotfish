@@ -8,3 +8,6 @@ if not set -q GITHUB_PERSONAL_ACCESS_TOKEN; and command -q gh
         set -gx GITHUB_PERSONAL_ACCESS_TOKEN $token
     end
 end
+
+# Register for generated completions (collected by Core's 95-completions.fish).
+set -ga __dotfish_completion_tools gh

@@ -39,7 +39,13 @@ amd64/arm64.
 
 **Core** is always installed and cannot be deselected — the shell's spine:
 greeting, environment, secrets, base `PATH`, navigation aliases, shared
-functions, and fish completions for `dotfish` itself.
+functions, and fish completions for `dotfish` itself. Core also generates
+completions for any CLI that can emit them: `completions-for <tool>` probes
+the tool's own completion subcommand (`rustup completions fish`,
+`gh completion -s fish`, …) and caches the script. Each installed Module
+registers its tool for this (deselect the Module and its completions go
+too); add extra tools via `dotfish_completion_extra_tools` in
+`profile.local.fish`.
 
 On top of Core you pick any subset of **Modules**. Each Module couples one
 dependency to the config files it owns; deselecting a Module installs neither.

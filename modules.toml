@@ -2,9 +2,9 @@
 #
 # See docs/adr/0004. The fish snippet CONTENT lives under config/fish/conf.d/;
 # this file owns ALL Module metadata (the snippets carry none). Core
-# (config/fish/conf.d/00-core.fish, the profile template, fish_plugins, shared
-# functions, completions/dotfish.fish) is always installed and is
-# intentionally NOT listed here.
+# (config/fish/conf.d/00-core.fish and 95-completions.fish, the profile
+# template, fish_plugins, shared functions, completions/dotfish.fish) is
+# always installed and is intentionally NOT listed here.
 #
 # Each [[module]] couples one dependency to the files it owns:
 #   name         unique Module id (matches the picker label + --modules value)

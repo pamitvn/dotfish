@@ -12,6 +12,14 @@
 # `only-pnpm on` still enables it per-shell when wanted.
 #set -g only_pnpm_auto 0
 
+# Generated completions (Core, conf.d/95-completions.fish): completions-for
+# probes each tool's own "emit completions" subcommand and caches the script.
+# The default set is registered by your installed Modules (gh, pnpm, rustup,
+# starship when selected). Uncomment to extend, replace, or disable here:
+#set -g dotfish_completion_extra_tools terraform op   # add to the default set
+#set -g dotfish_completion_tools kubectl helm         # replace the default set
+#set -g dotfish_completion_tools                      # (empty) disable
+
 # GitHub personal access token for MCP / gh tooling.
 # With the gh Module installed this is derived from `gh auth token` (keyring)
 # automatically — leave it commented out. Uncomment only to override with a
