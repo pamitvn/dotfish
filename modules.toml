@@ -30,6 +30,18 @@ brew = "eza"
 paru = "eza"
 
 [[module]]
+name = "gh"
+order = 15
+description = "GITHUB_PERSONAL_ACCESS_TOKEN from the gh keyring"
+default = true
+files = ["fish/conf.d/15-gh.fish"]
+[module.dep]
+check = "gh"
+[module.dep.packages]
+brew = "gh"
+paru = "github-cli"
+
+[[module]]
 name = "bat"
 order = 20
 description = "bat as a nicer cat and for man pages"

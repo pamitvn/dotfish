@@ -8,5 +8,7 @@
 # is NOT tracked — put actual secret values there, never here.
 
 # GitHub personal access token for MCP / gh tooling.
-# Generate at https://github.com/settings/tokens and paste below.
-set -gx GITHUB_PERSONAL_ACCESS_TOKEN "github_pat_xxxxxxxxxxxxxxxxxxxx"
+# With the gh Module installed this is derived from `gh auth token` (keyring)
+# automatically — leave it commented out. Uncomment only to override with a
+# specific PAT (generate at https://github.com/settings/tokens).
+#set -gx GITHUB_PERSONAL_ACCESS_TOKEN "github_pat_xxxxxxxxxxxxxxxxxxxx"

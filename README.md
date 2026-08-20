@@ -45,6 +45,7 @@ dependency to the config files it owns; deselecting a Module installs neither.
 | Module | What it adds | Default |
 |---|---|:---:|
 | `eza` | Replace `ls` with eza (icons, git, tree) | ✓ |
+| `gh` | `GITHUB_PERSONAL_ACCESS_TOKEN` from the gh keyring | ✓ |
 | `bat` | bat as a nicer `cat` and for man pages | ✓ |
 | `ugrep` | Replace the grep family with ugrep | ✓ |
 | `rustup` | Rust toolchain via rustup (cargo env) | ✓ |
