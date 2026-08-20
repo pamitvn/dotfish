@@ -50,14 +50,10 @@ function __only_pnpm_enable
     end
     # npx / bunx -> pnpm dlx
     function npx --description 'redirected to pnpm dlx by only-pnpm'
-        __only_pnpm_warn_mismatch
-        echo "only-pnpm: npx → pnpm dlx" >&2
-        command pnpm dlx $argv
+        __only_pnpm_dlx npx $argv
     end
     function bunx --description 'redirected to pnpm dlx by only-pnpm'
-        __only_pnpm_warn_mismatch
-        echo "only-pnpm: bunx → pnpm dlx" >&2
-        command pnpm dlx $argv
+        __only_pnpm_dlx bunx $argv
     end
     if not contains -- -q $argv; and not contains -- --quiet $argv
         echo "only-pnpm: enabled (npm/yarn/bun → pnpm)"
@@ -111,4 +107,85 @@ function __only_pnpm_run
 
     echo "only-pnpm: $tool $rest → pnpm $rest" >&2
     command pnpm $rest
+end
+
+# __only_pnpm_dlx <tool> <original args...>
+# npx/bunx -> pnpm dlx. Unlike npx, `pnpm dlx` refuses to guess when a
+# package ships multiple binaries (ERR_PNPM_DLX_MULTIPLE_BINS), so the
+# bin is resolved from the registry and dispatched explicitly as
+# `pnpm --package=<spec> dlx <bin>`.
+function __only_pnpm_dlx
+    set -l tool $argv[1]
+    set -l rest $argv[2..-1]
+
+    __only_pnpm_warn_mismatch
+
+    # Drop npx's -y/--yes: pnpm dlx never prompts and doesn't know the flag.
+    while test (count $rest) -gt 0
+        switch "$rest[1]"
+            case -y --yes
+                set -e rest[1]
+            case '*'
+                break
+        end
+    end
+
+    # First non-flag arg is the package spec, e.g. "@redocly/cli@1.25.0".
+    if test (count $rest) -gt 0; and not string match -q -- '-*' "$rest[1]"
+        set -l bin (__only_pnpm_dlx_bin "$rest[1]")
+        if test -n "$bin"
+            echo "only-pnpm: $tool → pnpm --package=$rest[1] dlx $bin" >&2
+            command pnpm --package=$rest[1] dlx $bin $rest[2..-1]
+            return
+        end
+    end
+
+    echo "only-pnpm: $tool → pnpm dlx" >&2
+    command pnpm dlx $rest
+end
+
+# __only_pnpm_dlx_bin <spec>
+# Resolve which binary `npx <spec>` would run by asking the registry for
+# the package's bin table. Picks: exact package name > scope name > first
+# listed. Results are cached for the session. Prints nothing when the
+# spec isn't a resolvable registry package (local path, git URL, offline,
+# no bins) — the caller then falls back to plain `pnpm dlx`.
+function __only_pnpm_dlx_bin
+    set -l spec $argv[1]
+
+    # Session cache: flat list of spec/bin pairs.
+    if set -q __only_pnpm_dlx_cache
+        set -l i 1
+        while test $i -lt (count $__only_pnpm_dlx_cache)
+            if test "$__only_pnpm_dlx_cache[$i]" = "$spec"
+                echo $__only_pnpm_dlx_cache[(math $i + 1)]
+                return
+            end
+            set i (math $i + 2)
+        end
+    end
+
+    # Bin names are the JSON keys of the packument's normalized bin table.
+    # (On failure pnpm still prints a JSON error object to stdout, so the
+    # exit status — not the output — decides whether this is parseable.)
+    set -l out (command pnpm view $spec bin --json 2>/dev/null)
+    test $status -eq 0; or return 1
+    set -l bins (string match -arg '"([^"]+)"\s*:' -- $out)
+    test (count $bins) -eq 0; and return 1
+
+    set -l bin $bins[1]
+    if test (count $bins) -gt 1
+        # Package name without the version suffix, then its parts.
+        set -l pkg (string match -rg '^(@[^/@]+/[^@]+|[^@]+)' -- "$spec")
+        set -l name (string replace -r '^@[^/]+/' '' -- $pkg)
+        set -l scope (string match -rg '^@([^/]+)/' -- $pkg)
+        if contains -- $name $bins
+            set bin $name
+        else if test -n "$scope"; and contains -- $scope $bins
+            set bin $scope
+        end
+    end
+
+    set -ga __only_pnpm_dlx_cache $spec $bin
+    echo $bin
 end
