@@ -76,6 +76,23 @@ brew = "docker"
 paru = "docker"
 
 [[module]]
+name = "php-stack"
+order = 45
+description = "Docker-aware artisan/composer wrappers (php-stack)"
+default = true
+files = [
+  "fish/conf.d/45-php-stack.fish",
+  "fish/functions/artisan.fish",
+  "fish/functions/composer.fish",
+  "fish/functions/php-stack.fish",
+]
+[module.dep]
+check = "php"
+[module.dep.packages]
+brew = "php"
+paru = "php"
+
+[[module]]
 name = "pnpm"
 order = 50
 description = "pnpm on PATH; enforce it over npm/yarn/bun"

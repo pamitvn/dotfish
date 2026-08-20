@@ -49,6 +49,7 @@ dependency to the config files it owns; deselecting a Module installs neither.
 | `ugrep` | Replace the grep family with ugrep | ✓ |
 | `rustup` | Rust toolchain via rustup (cargo env) | ✓ |
 | `docker` | Docker helpers and completions | ✓ |
+| `php-stack` | Docker-aware `artisan`/`composer` wrappers | ✓ |
 | `pnpm` | pnpm on `PATH`; enforce it over npm/yarn/bun | ✓ |
 | `starship` | Starship cross-shell prompt | ✓ |
 | `asdf` | asdf version manager | ✓ |

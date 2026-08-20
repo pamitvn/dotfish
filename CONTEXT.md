@@ -36,12 +36,26 @@ _Avoid_: plugin (means a fisher plugin), package (means an OS dependency), compo
 The always-installed, non-selectable baseline — the shell's spine (greeting, environment, secrets, base PATH, navigation aliases, shared functions). It is never a **Module** and cannot be deselected; a **Snapshot copy** always contains exactly one Core.
 _Avoid_: base module, default module, core module
 
+**Stack**:
+A PHP project's answer to "where do its tools execute": **docker** (inside the project's compose service) or **local** (directly on the host). It is an identity fact about the project on this machine — distinct from whether containers happen to be running right now, which is a health fact and is never part of the Stack.
+_Avoid_: environment, mode
+
+**Wrapper**:
+A globally-installed fish function that shadows a PHP tool's own name (`artisan`, `composer`) and transparently dispatches it according to the project's **Stack**. Outside any PHP project a Wrapper passes through to the real tool (or refuses, if no real tool can apply).
+_Avoid_: alias, shim (means the Install shim)
+
+**Stack record**:
+The per-machine, per-project remembered result of Stack detection — the project's **Stack** and, when docker, the chosen compose service. Written on the first **Wrapper** call inside a project, verified against reality on every call, and never stored inside the project itself.
+_Avoid_: index, project cache
+
 ## Relationships
 
 - A **Build source** produces exactly one **Installer** (via a build step), reached on a target machine through the **Install shim**
 - A **Build source** declares one or more **Modules** in exactly one **Manifest**
 - An **Installer** writes one **Snapshot copy** per machine it runs on, containing the chosen subset of **Modules**
 - A **Snapshot copy** has no link back to the **Build source** — they diverge unless the **Installer** is re-run
+- A **Wrapper** consults at most one **Stack record** per project; a project has at most one Stack record per machine
+- A **Stack record** derives from the project's **Stack** and never survives contradicting it — when reality disagrees, detection re-runs
 
 ## Flagged ambiguities
 
