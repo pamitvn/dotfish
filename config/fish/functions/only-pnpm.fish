@@ -9,7 +9,9 @@
 # (e.g. "npm@10..." or "yarn@4..."), the guard warns about the mismatch
 # but still forces pnpm.
 #
-# To make it always-on, add `only-pnpm` to ~/.config/fish/config.fish.
+# The pnpm Module (conf.d/50-pnpm.fish) enables the guard automatically in
+# interactive shells. To opt out on one machine, add
+# `set -g only_pnpm_auto 0` to ~/.config/fish/profile.local.fish.
 
 function only-pnpm --description 'Only pnpm: rewrite npm/yarn/bun to pnpm'
     switch "$argv[1]"

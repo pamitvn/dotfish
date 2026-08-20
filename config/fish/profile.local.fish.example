@@ -7,6 +7,11 @@
 # This file is a TEMPLATE and is tracked in git. Your real profile.local.fish
 # is NOT tracked — put actual secret values there, never here.
 
+# only-pnpm guard (pnpm Module): auto-enabled in interactive shells, rewriting
+# npm/yarn/bun to pnpm. Uncomment to keep the real tools on this machine;
+# `only-pnpm on` still enables it per-shell when wanted.
+#set -g only_pnpm_auto 0
+
 # GitHub personal access token for MCP / gh tooling.
 # With the gh Module installed this is derived from `gh auth token` (keyring)
 # automatically — leave it commented out. Uncomment only to override with a

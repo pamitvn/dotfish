@@ -11,6 +11,11 @@ end
 
 # Enforce pnpm: rewrite npm/yarn/bun -> pnpm in interactive shells.
 # (only-pnpm itself checks for pnpm on PATH and no-ops if absent.)
+# Machine-local opt-out: `set -g only_pnpm_auto 0` in profile.local.fish
+# (sourced by 00-core before this snippet) keeps the real npm/yarn/bun;
+# `only-pnpm on` still works manually.
 if status --is-interactive
-    only-pnpm on -q
+    if not contains -- "$only_pnpm_auto" 0 off false no
+        only-pnpm on -q
+    end
 end
