@@ -12,9 +12,11 @@ curl -fsSL https://raw.githubusercontent.com/anpmts/dotfiles-fish/main/shim/inst
 ```
 
 That one command is the **Install shim** — a tiny bootstrap that detects your
-OS/arch, downloads the matching prebuilt Installer from GitHub Releases, and runs
-it. On a terminal it shows a picker so you choose which Modules to install; the
-full set is pre-selected.
+OS/arch, downloads the matching prebuilt Installer from GitHub Releases,
+installs it to `~/.local/bin/dotfish` (override with `DOTFILES_BIN_DIR`), and
+runs it. On a terminal it shows a picker so you choose which Modules to
+install; the full set is pre-selected. Core puts `~/.local/bin` on fish's
+PATH, so afterwards the CLI is available as `dotfish` (e.g. `dotfish upgrade`).
 
 Pass Installer flags after `-s --`:
 
@@ -36,8 +38,8 @@ amd64/arm64.
 ## What you get
 
 **Core** is always installed and cannot be deselected — the shell's spine:
-greeting, environment, secrets, base `PATH`, navigation aliases, and shared
-functions.
+greeting, environment, secrets, base `PATH`, navigation aliases, shared
+functions, and fish completions for `dotfish` itself.
 
 On top of Core you pick any subset of **Modules**. Each Module couples one
 dependency to the config files it owns; deselecting a Module installs neither.
@@ -63,11 +65,12 @@ vendor install script where no package maps.
 ## Installer commands
 
 ```
-installer [install] [flags]   install Core + the chosen Modules (default)
-installer upgrade [flags]     fetch the latest release, re-install prior subset
-installer doctor              verify deps resolve and conf.d sources cleanly
-installer uninstall           back up and remove the installed config
-installer version             print the version
+dotfish [install] [flags]   install Core + the chosen Modules (default)
+dotfish upgrade [flags]     fetch the latest release, re-install prior subset
+dotfish doctor              verify deps resolve and conf.d sources cleanly
+dotfish uninstall           back up and remove the installed config
+dotfish modules             list selectable Modules (name + description)
+dotfish version             print the version
 
 Install flags:
   --modules a,b,c   install exactly these Modules
@@ -81,12 +84,12 @@ the Installer is the only way to update it; direct edits are overwritten on the
 next run. Machine-local secrets (`profile.local.fish`) are preserved across runs
 and backups.
 
-`installer upgrade` checks GitHub Releases for a newer Installer, downloads the
-matching binary, and hands off to its `install --no-tui`, re-installing your
-prior Module subset without a picker. Extra flags pass through to that install
-(e.g. `installer upgrade --all`). The shim's `DOTFILES_REPO` /
-`DOTFILES_VERSION` overrides are honored; setting `DOTFILES_VERSION` skips the
-up-to-date check and force-installs that version.
+`dotfish upgrade` checks GitHub Releases for a newer Installer, downloads the
+matching binary, swaps it over the installed CLI, and hands off to its
+`install --no-tui`, re-installing your prior Module subset without a picker.
+Extra flags pass through to that install (e.g. `dotfish upgrade --all`). The
+shim's `DOTFILES_REPO` / `DOTFILES_VERSION` overrides are honored; setting
+`DOTFILES_VERSION` skips the up-to-date check and force-installs that version.
 
 Running with no TTY (piped) and no flags re-installs your previous subset
 (inferred from which snippets are present), or every Module on a first run.

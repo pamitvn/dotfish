@@ -19,7 +19,7 @@ import (
 
 const (
 	defaultRepo = "anpmts/dotfiles-fish"
-	binName     = "dotfiles-installer"
+	binName     = "dotfish"
 )
 
 // Run upgrades from currentVersion to the latest release (or the
@@ -56,10 +56,57 @@ func Run(currentVersion string, extraArgs []string) error {
 	}
 	defer os.Remove(bin)
 
+	// The shim installs the CLI to a local bin dir; keep it current by
+	// swapping the new binary over the running one, then run from there.
+	run := replaceSelf(bin)
+
 	fmt.Println("→ running the new Installer (prior Module subset, no picker)")
-	cmd := exec.Command(bin, append([]string{"install", "--no-tui"}, extraArgs...)...)
+	cmd := exec.Command(run, append([]string{"install", "--no-tui"}, extraArgs...)...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd.Run()
+}
+
+// replaceSelf atomically installs newBin over the currently running executable
+// and returns the path to run. Renaming over a live binary is safe on
+// linux/darwin (the running process keeps its inode). When the executable's
+// location can't be determined or written, it warns and returns newBin so the
+// upgrade still proceeds from the temp download.
+func replaceSelf(newBin string) string {
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "⚠ cannot locate current executable — running from temp download")
+		return newBin
+	}
+	staged := exe + ".new"
+	if err := copyFile(newBin, staged); err == nil {
+		err = os.Rename(staged, exe)
+	}
+	if err != nil {
+		os.Remove(staged)
+		fmt.Fprintf(os.Stderr, "⚠ could not replace %s (%v) — running from temp download\n", exe, err)
+		return newBin
+	}
+	fmt.Println("✓ replaced " + exe)
+	return exe
+}
+
+// copyFile stages src at dst (same directory as the final target, so the
+// follow-up rename is atomic even when the temp dir is another filesystem).
+func copyFile(src, dst string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 // latestTag resolves the release tag behind GitHub's /releases/latest

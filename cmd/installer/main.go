@@ -1,15 +1,16 @@
-// Command installer is the self-contained fish-config Installer: a single
-// static binary that carries the whole config payload (go:embed) and writes it
-// into the Snapshot copy. It is reached on a fresh machine via the Install shim
-// (curl | sh). See docs/adr/0003.
+// Command installer builds dotfish, the self-contained fish-config Installer:
+// a single static binary that carries the whole config payload (go:embed) and
+// writes it into the Snapshot copy. It is reached on a fresh machine via the
+// Install shim (curl | sh). See docs/adr/0003.
 //
 // Usage:
 //
-//	installer [install] [--modules a,b | --all | --none] [--no-tui]
-//	installer upgrade [install flags]
-//	installer doctor
-//	installer uninstall
-//	installer version
+//	dotfish [install] [--modules a,b | --all | --none] [--no-tui]
+//	dotfish upgrade [install flags]
+//	dotfish doctor
+//	dotfish uninstall
+//	dotfish modules
+//	dotfish version
 //
 // With no flags on a TTY, `install` shows an interactive picker. Piped (no
 // TTY), it reinstalls the prior subset (inferred from the existing config) or
@@ -48,7 +49,7 @@ func run(args []string) error {
 
 	switch cmd {
 	case "version", "--version", "-v":
-		fmt.Println("dotfiles-fish installer " + version)
+		fmt.Println("dotfish " + version)
 		return nil
 	case "help", "--help", "-h":
 		usage()
@@ -78,6 +79,13 @@ func run(args []string) error {
 		return install.Doctor(man)
 	case "uninstall":
 		return install.Uninstall(man)
+	case "modules":
+		// "name<TAB>description" per line — consumed by the fish completions
+		// (Core's completions/dotfish.fish) and readable enough for humans.
+		for _, mod := range man.Modules {
+			fmt.Printf("%s\t%s\n", mod.Name, mod.Description)
+		}
+		return nil
 	default:
 		usage()
 		return fmt.Errorf("unknown command: %s", cmd)
@@ -104,16 +112,17 @@ func parseInstallFlags(args []string) (selector.Options, error) {
 }
 
 func usage() {
-	fmt.Print(`dotfiles-fish installer
+	fmt.Print(`dotfish — the dotfiles-fish Installer
 
 Usage:
-  installer [install] [flags]   install Core + the chosen Modules (default)
-  installer upgrade [flags]     fetch the latest release and re-install the
-                                prior Module subset (extra flags pass through
-                                to its install)
-  installer doctor              verify deps resolve and conf.d sources cleanly
-  installer uninstall           back up and remove the installed config
-  installer version             print the version
+  dotfish [install] [flags]   install Core + the chosen Modules (default)
+  dotfish upgrade [flags]     fetch the latest release and re-install the
+                              prior Module subset (extra flags pass through
+                              to its install)
+  dotfish doctor              verify deps resolve and conf.d sources cleanly
+  dotfish uninstall           back up and remove the installed config
+  dotfish modules             list selectable Modules (name + description)
+  dotfish version             print the version
 
 Install flags:
   --modules a,b,c   install exactly these Modules

@@ -2,9 +2,10 @@
 # install.sh — the Install shim: one-command bootstrap for a fresh machine.
 #
 # Detects OS/arch, downloads the matching prebuilt Installer binary from GitHub
-# Releases, and runs it. It transfers ONLY the Installer binary — never a clone
-# of the Build source (the config payload travels inside the binary). See
-# docs/adr/0003.
+# Releases, installs it to a local bin dir (so `dotfish upgrade` works
+# later), and runs it. It transfers ONLY the Installer binary — never a
+# clone of the Build source (the config payload travels inside the binary).
+# See docs/adr/0003.
 #
 # Usage:
 #   curl -fsSL https://raw.githubusercontent.com/anpmts/dotfiles-fish/main/shim/install.sh | sh
@@ -13,10 +14,12 @@
 #   curl -fsSL .../shim/install.sh | sh -s -- --all
 #
 # Overrides: DOTFILES_REPO=owner/repo  DOTFILES_VERSION=v1.2.3
+#            DOTFILES_BIN_DIR=/path    (default ~/.local/bin)
 set -eu
 
 REPO="${DOTFILES_REPO:-anpmts/dotfiles-fish}"
-BIN="dotfiles-installer"
+BIN="dotfish"
+BIN_DIR="${DOTFILES_BIN_DIR:-$HOME/.local/bin}"
 
 os=$(uname -s | tr '[:upper:]' '[:lower:]')
 case "$os" in
@@ -52,4 +55,14 @@ else
 fi
 
 chmod +x "$tmp/$BIN"
-exec "$tmp/$BIN" "$@"
+mkdir -p "$BIN_DIR"
+mv "$tmp/$BIN" "$BIN_DIR/$BIN"
+echo "✓ installed $BIN -> $BIN_DIR/$BIN"
+
+# Core puts ~/.local/bin on fish's PATH; warn for other shells / custom dirs.
+case ":$PATH:" in
+    *":$BIN_DIR:"*) ;;
+    *) echo "⚠ $BIN_DIR is not on this shell's PATH — add it to run '$BIN upgrade' later" >&2 ;;
+esac
+
+exec "$BIN_DIR/$BIN" "$@"

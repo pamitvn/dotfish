@@ -8,7 +8,7 @@
 #   goreleaser build --snapshot --clean   (local test build)
 version: 2
 
-project_name: dotfiles-installer
+project_name: dotfish
 
 before:
   hooks:
@@ -17,7 +17,7 @@ before:
 builds:
   - id: installer
     main: ./cmd/installer
-    binary: dotfiles-installer
+    binary: dotfish
     env:
       - CGO_ENABLED=0
     goos: [linux, darwin]
