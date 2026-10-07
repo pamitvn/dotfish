@@ -3,8 +3,12 @@
 With this Module on, you start branches with git-flow as usual but you never
 run `git flow … finish` again. `flow feature finish` (or `flow hotfix finish`)
 rebases your branch onto its base, pushes it, and opens the pull request on
-GitHub — `main` is never checked out, merged, or tagged on your machine.
-Integration happens on GitHub with **Rebase and merge**, after review and CI.
+GitHub — `main` is never merged or tagged on your machine. Integration
+happens on GitHub with **Rebase and merge**, after review and CI.
+
+The base branches stay current without you merging anything: `start`
+fast-forwards the base from the remote before git-flow branches off it, and
+`flow sync` brings you back to the base, fast-forwarded, once the PR is in.
 
 ## Get it / remove it
 
@@ -26,11 +30,12 @@ Machine-local tweaks belong in `profile.local.fish`.
 
 | You type | You get |
 |---|---|
-| `flow feature start <name>` | `git flow feature start <name>` — a feature branch off the develop branch |
-| `flow hotfix start <name>` | `git flow hotfix start <name>` — a hotfix branch off the master branch |
+| `flow feature start <name>` | fetch and fast-forward the develop branch, then `git flow feature start <name>` off it |
+| `flow hotfix start <name>` | fetch and fast-forward the master branch, then `git flow hotfix start <name>` off it |
 | `flow feature finish [name]` | rebase onto the feature base, `git push --force-with-lease`, `gh pr create` → feature base |
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
-| `flow config` | the resolved remote, prefixes, PR bases, and whether a preflight gate is defined |
+| `flow sync [branch]` | fetch, fast-forward the base branch and check it out — develop by default, master when you are on a hotfix branch |
+| `flow config` | the resolved remote, develop/master, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `finish` flags, and your local `feature`/`hotfix` branches by prefix |
 
 `finish` flags: `--draft` (open PR(s) as draft), `--no-pr` (rebase and push
@@ -38,6 +43,11 @@ only), `--web` (open the created PR in the browser). The branch name is
 optional — with none, the branch you are on is finished — and the prefix may
 be omitted (`flow feature finish 1858` resolves to `TRUST-1858` when the
 feature prefix is `TRUST-`).
+
+`start` accepts git-flow's optional second positional (`flow feature start
+<name> <base>`): that base is the one synced and branched from. If the base
+exists only on the remote it is created tracking it; if there is no remote at
+all, git-flow starts from the local base as before.
 
 No aliases or environment variables are set; everything is functions.
 
@@ -67,10 +77,22 @@ Each check stops the command before anything is pushed:
 
 An already-open PR for the same branch and base is reused, not duplicated.
 
+### What `start` and `sync` refuse
+
+Both only ever *fast-forward* the base; they never merge or reset it:
+
+- the local base has commits the remote does not (it diverged) — the command
+  stops and tells you to sort it out by hand, the branch is left untouched
+- `sync` with a dirty working tree, or with a branch that exists neither
+  locally nor on the remote
+
 ## Usage
 
 ```
 $ flow feature start 1858              # creates TRUST-1858 from staging-product-review
+==> fetch origin
+==> fast-forward staging-product-review (3 commits)
+Switched to a new branch 'TRUST-1858'
 $ git commit -am "feat: ..."
 $ flow feature finish
 ==> fetch origin
@@ -79,6 +101,11 @@ $ flow feature finish
 ==> open PR TRUST-1858 → staging-product-review
 https://github.com/org/repo/pull/123
 ==> done — merge on GitHub with 'Rebase and merge'. 'staging-product-review' was not touched locally.
+$ flow sync                            # after the PR merged: back to the base, current
+==> fetch origin
+==> fast-forward staging-product-review (1 commits)
+==> checkout staging-product-review
+==> on staging-product-review — up to date with origin/staging-product-review
 ```
 
 ```
@@ -92,6 +119,8 @@ $ flow hotfix finish --draft
 $ flow feature finish --no-pr          # just rebase + push, PR later
 $ flow config
 remote               origin
+develop              staging-product-review
+master               main
 feature prefix       TRUST-
 feature base         staging-product-review
 hotfix prefix        hotfix/

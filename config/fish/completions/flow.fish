@@ -17,7 +17,14 @@ complete -c flow -f
 
 complete -c flow -n __fish_use_subcommand -a feature -d 'Feature branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a hotfix -d 'Hotfix branch (from main)'
+complete -c flow -n __fish_use_subcommand -a sync -d 'Back to the base branch, fast-forwarded'
 complete -c flow -n __fish_use_subcommand -a config -d 'Show resolved branches'
+
+function __flow_complete_bases
+    __flow_load
+    printf '%s\n' $__flow_develop $__flow_master
+end
+complete -c flow -n '__fish_seen_subcommand_from sync' -a '(__flow_complete_bases)'
 
 set -l topic '__fish_seen_subcommand_from feature hotfix'
 complete -c flow -n "$topic; and not __fish_seen_subcommand_from start finish" -a start -d 'Create the branch via git flow'

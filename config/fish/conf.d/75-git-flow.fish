@@ -19,6 +19,11 @@
 # Optional gate: define `flow_preflight` in profile.local.fish. It runs on the
 # rebased topic branch before anything is pushed, with $argv[1] = feature|hotfix
 # and $argv[2] = branch name; a non-zero return aborts the finish.
+#
+# Base branches are kept current, never merged: `flow <type> start` fast-forwards
+# the git-flow base (develop/master) from the remote before git-flow branches
+# off it, and `flow sync` goes back to that base and fast-forwards it again once
+# the PR has merged. A base that diverged from the remote is left alone.
 
 # Print git config <key>, or <default> when unset/empty.
 function __flow_cfg --argument-names key default
@@ -103,6 +108,94 @@ function __flow_rebase_onto --argument-names branch base
         printf '\nRebase stopped on conflicts. Resolve them, then:\n    git rebase --continue\n    flow <type> finish\n(or: git rebase --abort)\n' >&2
         return 1
     end
+end
+
+# __flow_sync_branch <base> [--checkout]
+# Fetch, then fast-forward local <base> to <remote>/<base>; with --checkout,
+# switch to it afterwards. Never merges: a diverged base is an error, a base
+# that only exists on the remote is created tracking it, and a base with no
+# remote counterpart is left as is (nothing to sync from).
+function __flow_sync_branch --argument-names base
+    argparse checkout -- $argv[2..-1]; or return 2
+    __flow_info "fetch $__flow_remote"
+    command git fetch --prune $__flow_remote; or return 1
+
+    set -l remote_ref refs/remotes/$__flow_remote/$base
+    set -l has_local (command git show-ref --verify --quiet refs/heads/$base; and echo 1)
+    set -l has_remote (command git show-ref --verify --quiet $remote_ref; and echo 1)
+    set -l current (command git rev-parse --abbrev-ref HEAD)
+
+    if test -z "$has_remote"
+        if test -z "$has_local"
+            echo "flow: branch '$base' exists neither locally nor on $__flow_remote" >&2
+            return 1
+        end
+        __flow_info "no $__flow_remote/$base — $base left as is"
+    else if test -z "$has_local"
+        __flow_info "create $base tracking $__flow_remote/$base"
+        command git branch -q --track $base $__flow_remote/$base; or return 1
+    else if not command git merge-base --is-ancestor $base $remote_ref
+        echo "flow: local '$base' has diverged from $__flow_remote/$base — not fast-forwardable; sort it out by hand" >&2
+        return 1
+    else
+        set -l behind (command git rev-list --count $base..$remote_ref)
+        if test $behind -eq 0
+            __flow_info "$base is up to date with $__flow_remote/$base"
+        else if test $current = $base
+            __flow_info "fast-forward $base ($behind commits)"
+            command git merge --ff-only -q $remote_ref; or return 1
+        else
+            __flow_info "fast-forward $base ($behind commits)"
+            command git branch -q -f $base $remote_ref; or return 1
+        end
+    end
+
+    if set -q _flag_checkout; and test $current != $base
+        __flow_info "checkout $base"
+        command git checkout -q $base; or return 1
+    end
+end
+
+# `flow <type> start <name> [base] [git-flow flags]`: sync the base git-flow
+# will branch from, then delegate. A second positional overrides the base,
+# exactly as git-flow itself accepts it.
+function __flow_start --argument-names type
+    if not type -q git-flow
+        echo "flow: git-flow not installed (brew install git-flow)" >&2
+        return 1
+    end
+    __flow_load
+    set -l args $argv[2..-1]
+    set -l positional (string match -rv -- '^-' $args)
+    set -l base $__flow_develop
+    test $type = hotfix; and set base $__flow_master
+    test (count $positional) -ge 2; and set base $positional[2]
+
+    if command git remote get-url $__flow_remote >/dev/null 2>&1
+        __flow_sync_branch $base; or return 1
+    else
+        __flow_info "no remote '$__flow_remote' — starting from local $base"
+    end
+    command git flow $type start $args
+end
+
+# `flow sync [branch]`: go back to a base branch and fast-forward it. With no
+# argument the base is inferred from the branch you are on (hotfix prefix →
+# master, anything else → develop).
+function __flow_sync
+    __flow_load
+    set -l base $argv[1]
+    if test -z "$base"
+        set -l current (command git rev-parse --abbrev-ref HEAD)
+        if string match -q -- "$__flow_prefix_hotfix*" $current
+            set base $__flow_master
+        else
+            set base $__flow_develop
+        end
+    end
+    __flow_require_clean; or return 1
+    __flow_sync_branch $base --checkout; or return 1
+    __flow_info "on $base — up to date with $__flow_remote/$base"
 end
 
 # __flow_open_pr <branch> <base> <title> [gh pr create flags...]
