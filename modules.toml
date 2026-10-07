@@ -148,6 +148,24 @@ brew = "asdf"
 paru = "asdf"
 
 [[module]]
+name = "git-flow"
+order = 75
+description = "flow: git-flow branches finished via GitHub PRs (main never merged locally)"
+default = true
+files = [
+  "fish/conf.d/75-git-flow.fish",
+  "fish/functions/flow.fish",
+  "fish/completions/flow.fish",
+]
+# `flow ... finish` also uses gh (the gh Module); without it the branch is
+# still rebased and pushed, only the PR step refuses.
+[module.dep]
+check = "git-flow"
+[module.dep.packages]
+brew = "git-flow"
+paru = "gitflow-avh"
+
+[[module]]
 name = "fastfetch"
 order = 90
 description = "Fastfetch greeting (loads last)"

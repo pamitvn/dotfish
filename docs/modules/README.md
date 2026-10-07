@@ -16,4 +16,5 @@ Pick Modules in the `dotfish` picker or with `dotfish --modules a,b,c`.
 | [pnpm](pnpm.md) | pnpm on `PATH`; enforce it over npm/yarn/bun | ✓ |
 | [starship](starship.md) | Starship cross-shell prompt | ✓ |
 | [asdf](asdf.md) | asdf version manager | ✓ |
+| [git-flow](git-flow.md) | `flow`: git-flow branches finished via GitHub PRs (main never merged locally) | ✓ |
 | [fastfetch](fastfetch.md) | Fastfetch greeting (loads last) | ✓ |

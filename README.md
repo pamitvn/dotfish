@@ -62,6 +62,7 @@ dependency to the config files it owns; deselecting a Module installs neither.
 | `pnpm` | pnpm on `PATH`; enforce it over npm/yarn/bun | ✓ |
 | `starship` | Starship cross-shell prompt | ✓ |
 | `asdf` | asdf version manager | ✓ |
+| `git-flow` | `flow`: git-flow branches finished via GitHub PRs (main never merged locally) | ✓ |
 | `fastfetch` | Fastfetch greeting (loads last) | ✓ |
 
 The Installer installs each chosen Module's dependency through your host package
