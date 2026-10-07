@@ -14,15 +14,18 @@
 #   flow.feature.base       PR base for features    (default gitflow.branch.develop)
 #   flow.hotfix.base        PR base for hotfixes    (default gitflow.branch.master)
 #   flow.hotfix.backmerge   second hotfix PR base   (default gitflow.branch.develop)
+#   flow.release.base       PR base for releases    (default gitflow.branch.master)
+#   flow.release.backmerge  second release PR base  (default gitflow.branch.develop)
 #   flow.remote             remote name             (default origin)
 #
 # Optional gate: define `flow_preflight` in profile.local.fish. It runs on the
-# rebased topic branch before anything is pushed, with $argv[1] = feature|hotfix
-# and $argv[2] = branch name; a non-zero return aborts the finish.
+# rebased topic branch before anything is pushed, with $argv[1] =
+# feature|hotfix|release and $argv[2] = branch name; a non-zero return aborts
+# the finish.
 #
 # Base branches are kept current, never merged: `flow <type> start` fast-forwards
-# the git-flow base (develop/master) from the remote before git-flow branches
-# off it, and `flow sync` goes back to that base and fast-forwards it again once
+# the git-flow base (develop, or master for hotfixes) from the remote before
+# git-flow branches off it, and `flow sync` goes back to that base and fast-forwards it again once
 # the PR has merged. A base that diverged from the remote is left alone.
 
 # Print git config <key>, or <default> when unset/empty.
@@ -42,9 +45,12 @@ function __flow_load
     set -g __flow_develop (__flow_cfg gitflow.branch.develop develop)
     set -g __flow_prefix_feature (__flow_cfg gitflow.prefix.feature feature/)
     set -g __flow_prefix_hotfix (__flow_cfg gitflow.prefix.hotfix hotfix/)
+    set -g __flow_prefix_release (__flow_cfg gitflow.prefix.release release/)
     set -g __flow_feature_base (__flow_cfg flow.feature.base $__flow_develop)
     set -g __flow_hotfix_base (__flow_cfg flow.hotfix.base $__flow_master)
     set -g __flow_hotfix_backmerge (__flow_cfg flow.hotfix.backmerge $__flow_develop)
+    set -g __flow_release_base (__flow_cfg flow.release.base $__flow_master)
+    set -g __flow_release_backmerge (__flow_cfg flow.release.backmerge $__flow_develop)
 end
 
 function __flow_info
@@ -157,8 +163,8 @@ function __flow_sync_branch --argument-names base
 end
 
 # `flow <type> start <name> [base] [git-flow flags]`: sync the base git-flow
-# will branch from, then delegate. A second positional overrides the base,
-# exactly as git-flow itself accepts it.
+# will branch from (develop; master for hotfixes), then delegate. A second
+# positional overrides the base, exactly as git-flow itself accepts it.
 function __flow_start --argument-names type
     if not type -q git-flow
         echo "flow: git-flow not installed (brew install git-flow)" >&2
@@ -181,7 +187,7 @@ end
 
 # `flow sync [branch]`: go back to a base branch and fast-forward it. With no
 # argument the base is inferred from the branch you are on (hotfix prefix →
-# master, anything else → develop).
+# master; feature, release and anything else → develop).
 function __flow_sync
     __flow_load
     set -l base $argv[1]
@@ -218,9 +224,16 @@ function __flow_finish --argument-names type
 
     set -l prefix $__flow_prefix_feature
     set -l base $__flow_feature_base
-    if test $type = hotfix
-        set prefix $__flow_prefix_hotfix
-        set base $__flow_hotfix_base
+    set -l backmerge
+    switch $type
+        case hotfix
+            set prefix $__flow_prefix_hotfix
+            set base $__flow_hotfix_base
+            set backmerge $__flow_hotfix_backmerge
+        case release
+            set prefix $__flow_prefix_release
+            set base $__flow_release_base
+            set backmerge $__flow_release_backmerge
     end
 
     set -l branch (__flow_resolve_branch $prefix "$argv[1]"); or return 1
@@ -258,8 +271,8 @@ function __flow_finish --argument-names type
     set -q _flag_web; and set web_flag --web
 
     __flow_open_pr $branch $base $branch $pr_flags $web_flag; or return 1
-    if test $type = hotfix; and test $__flow_hotfix_backmerge != $base
-        __flow_open_pr $branch $__flow_hotfix_backmerge "[back-merge] $branch" $pr_flags; or return 1
+    if test -n "$backmerge"; and test $backmerge != $base
+        __flow_open_pr $branch $backmerge "[back-merge] $branch" $pr_flags; or return 1
     end
     __flow_info "done — merge on GitHub with 'Rebase and merge'. '$base' was not touched locally."
 end

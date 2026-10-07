@@ -10,6 +10,8 @@ function __flow_complete_branches
             __flow_topic_branches $__flow_prefix_feature
         case hotfix
             __flow_topic_branches $__flow_prefix_hotfix
+        case release
+            __flow_topic_branches $__flow_prefix_release
     end
 end
 
@@ -17,6 +19,7 @@ complete -c flow -f
 
 complete -c flow -n __fish_use_subcommand -a feature -d 'Feature branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a hotfix -d 'Hotfix branch (from main)'
+complete -c flow -n __fish_use_subcommand -a release -d 'Release branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a sync -d 'Back to the base branch, fast-forwarded'
 complete -c flow -n __fish_use_subcommand -a config -d 'Show resolved branches'
 
@@ -26,7 +29,7 @@ function __flow_complete_bases
 end
 complete -c flow -n '__fish_seen_subcommand_from sync' -a '(__flow_complete_bases)'
 
-set -l topic '__fish_seen_subcommand_from feature hotfix'
+set -l topic '__fish_seen_subcommand_from feature hotfix release'
 complete -c flow -n "$topic; and not __fish_seen_subcommand_from start finish" -a start -d 'Create the branch via git flow'
 complete -c flow -n "$topic; and not __fish_seen_subcommand_from start finish" -a finish -d 'Rebase, push, open PR(s)'
 

@@ -4,6 +4,8 @@
 #   flow feature finish [name] [opts]      rebase onto base, push, PR → base
 #   flow hotfix start <name>               sync main, then git flow hotfix start
 #   flow hotfix finish [name] [opts]       PR → main, plus a [back-merge] PR
+#   flow release start <version>           sync develop, then git flow release start
+#   flow release finish [name] [opts]      PR → main, plus a [back-merge] PR
 #   flow sync [branch]                     back to the base branch, fast-forwarded
 #   flow config                            show the resolved branches
 #
@@ -24,7 +26,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
     set -l action $argv[2]
 
     switch "$type"
-        case feature hotfix
+        case feature hotfix release
             switch "$action"
                 case start
                     __flow_start $type $argv[3..-1]
@@ -46,20 +48,23 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
                 'feature base' $__flow_feature_base \
                 'hotfix prefix' $__flow_prefix_hotfix \
                 'hotfix base' $__flow_hotfix_base \
-                'hotfix backmerge' $__flow_hotfix_backmerge
+                'hotfix backmerge' $__flow_hotfix_backmerge \
+                'release prefix' $__flow_prefix_release \
+                'release base' $__flow_release_base \
+                'release backmerge' $__flow_release_backmerge
             if functions -q flow_preflight
                 printf '%-20s %s\n' preflight 'flow_preflight (profile.local.fish)'
             else
                 printf '%-20s %s\n' preflight 'none'
             end
         case '' -h --help help
-            echo 'usage: flow feature|hotfix start <name>'
-            echo '       flow feature|hotfix finish [name] [--draft] [--no-pr] [--web]'
+            echo 'usage: flow feature|hotfix|release start <name>'
+            echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
             echo '       flow sync [branch]'
             echo '       flow config'
             test -z "$type"; and return 2
         case '*'
-            echo "flow: unknown command '$type' (feature|hotfix|sync|config)" >&2
+            echo "flow: unknown command '$type' (feature|hotfix|release|sync|config)" >&2
             return 2
     end
 end

@@ -34,9 +34,11 @@ Machine-local tweaks belong in `profile.local.fish`.
 | `flow hotfix start <name>` | fetch and fast-forward the master branch, then `git flow hotfix start <name>` off it |
 | `flow feature finish [name]` | rebase onto the feature base, `git push --force-with-lease`, `gh pr create` → feature base |
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
+| `flow release start <version>` | fetch and fast-forward the develop branch, then `git flow release start <version>` off it |
+| `flow release finish [name]` | rebase onto the release base (`main`), push, a PR → `main` **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow sync [branch]` | fetch, fast-forward the base branch and check it out — develop by default, master when you are on a hotfix branch |
 | `flow config` | the resolved remote, develop/master, prefixes, PR bases, and whether a preflight gate is defined |
-| Tab completion | subcommands, `finish` flags, and your local `feature`/`hotfix` branches by prefix |
+| Tab completion | subcommands, `finish` flags, and your local `feature`/`hotfix`/`release` branches by prefix |
 
 `finish` flags: `--draft` (open PR(s) as draft), `--no-pr` (rebase and push
 only), `--web` (open the created PR in the browser). The branch name is
@@ -58,10 +60,11 @@ The topology is read from git-flow's own config in the current repo, so
 
 | Setting | Read from | Default |
 |---|---|---|
-| master / hotfix base | `gitflow.branch.master` | `main` |
+| master / hotfix base / release base | `gitflow.branch.master` | `main` |
 | develop / feature base / back-merge base | `gitflow.branch.develop` | `develop` |
 | feature prefix | `gitflow.prefix.feature` | `feature/` |
 | hotfix prefix | `gitflow.prefix.hotfix` | `hotfix/` |
+| release prefix | `gitflow.prefix.release` | `release/` |
 
 ### What `finish` refuses
 
@@ -126,6 +129,9 @@ feature base         staging-product-review
 hotfix prefix        hotfix/
 hotfix base          main
 hotfix backmerge     staging-product-review
+release prefix       release/
+release base         main
+release backmerge    staging-product-review
 preflight            none
 ```
 
@@ -138,14 +144,17 @@ preflight            none
   git config flow.feature.base develop          # feature PRs → develop
   git config flow.hotfix.base main              # hotfix PRs → main
   git config flow.hotfix.backmerge staging      # second hotfix PR → staging
+  git config flow.release.base main             # release PRs → main
+  git config flow.release.backmerge staging     # second release PR → staging
   git config flow.remote upstream               # push/fetch remote
   ```
 
-  When `flow.hotfix.backmerge` equals the hotfix base, no second PR is opened.
+  When a `backmerge` key equals its type's base, no second PR is opened.
 
 - **Gate the push** — define `flow_preflight` in `profile.local.fish`. It runs
-  on the rebased branch, before the push, with `$argv[1]` = `feature`/`hotfix`
-  and `$argv[2]` = the branch; a non-zero return aborts the finish:
+  on the rebased branch, before the push, with `$argv[1]` =
+  `feature`/`hotfix`/`release` and `$argv[2]` = the branch; a non-zero return
+  aborts the finish:
 
   ```fish
   # profile.local.fish
