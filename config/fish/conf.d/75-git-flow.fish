@@ -162,6 +162,25 @@ function __flow_sync_branch --argument-names base
     end
 end
 
+# Git cannot create <branch> while a parent path is itself a branch (`hotfix`
+# blocks `hotfix/5.7.0`) or <branch> is a parent of one (`hotfix/5.7.0/x`).
+# git-flow 0.4.1 prints its success summary regardless, so check up front.
+function __flow_assert_creatable --argument-names branch
+    set -l parts (string split / $branch)
+    for i in (seq 1 (math (count $parts) - 1))
+        set -l parent (string join / $parts[1..$i])
+        if command git show-ref --verify --quiet refs/heads/$parent
+            echo "flow: cannot create '$branch': a branch named '$parent' is in the way" >&2
+            echo "      rename it (git branch -m $parent <other>) or delete it (git branch -d $parent)" >&2
+            return 1
+        end
+    end
+    if test -n "$(command git for-each-ref --format=1 --count=1 refs/heads/$branch/)"
+        echo "flow: cannot create '$branch': branches named '$branch/…' are in the way" >&2
+        return 1
+    end
+end
+
 # `flow <type> start <name> [base] [git-flow flags]`: sync the base git-flow
 # will branch from (develop; master for hotfixes), then delegate. A second
 # positional overrides the base, exactly as git-flow itself accepts it.
@@ -177,12 +196,23 @@ function __flow_start --argument-names type
     test $type = hotfix; and set base $__flow_master
     test (count $positional) -ge 2; and set base $positional[2]
 
+    set -l prefix $__flow_prefix_feature
+    test $type = hotfix; and set prefix $__flow_prefix_hotfix
+    test $type = release; and set prefix $__flow_prefix_release
+    set -l branch "$prefix$positional[1]"
+    test -n "$positional[1]"; and begin; __flow_assert_creatable $branch; or return 1; end
+
     if command git remote get-url $__flow_remote >/dev/null 2>&1
         __flow_sync_branch $base; or return 1
     else
         __flow_info "no remote '$__flow_remote' — starting from local $base"
     end
-    command git flow $type start $args
+    command git flow $type start $args; or return 1
+    # git-flow 0.4.1 prints its summary even when the checkout failed.
+    if test -n "$positional[1]"; and test (command git rev-parse --abbrev-ref HEAD) != $branch
+        echo "flow: git-flow did not land on '$branch' — still on "(command git rev-parse --abbrev-ref HEAD)"; ignore the summary above" >&2
+        return 1
+    end
 end
 
 # `flow sync [branch]`: go back to a base branch and fast-forward it. With no

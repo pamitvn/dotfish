@@ -105,6 +105,13 @@ An already-open PR for the same branch and base is reused, not duplicated.
 `sync` refuses a dirty working tree and a branch that exists neither locally
 nor on the remote. `start` and `sync` both refuse a diverged base, as above.
 
+`start` also refuses, before touching anything, a branch name git cannot
+create: a branch named like a parent path (`hotfix` blocks `hotfix/5.7.0`)
+or child branches under it (`hotfix/5.7.0/x`). It tells you which branch is
+in the way and how to rename it. git-flow 0.4.1 prints its "A new branch was
+created" summary even when the checkout failed, so `start` additionally
+verifies it landed on the new branch and reports otherwise.
+
 ## Usage
 
 A feature, start to finish (develop is `staging-product-review`, feature
