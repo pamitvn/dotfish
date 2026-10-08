@@ -94,7 +94,7 @@ without asking.
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
-| `flow promote [from]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge |
+| `flow promote [from]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge. On a conflict: cut `promote/<from>-into-<to>`, merge the target into it for you to resolve; `flow promote` on that branch pushes it and opens the PR |
 | `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, main when you are on a hotfix branch, develop otherwise |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `init`/`finish`/`promote` flags, `sync` bases, promotable environments, and your local `feature`/`hotfix`/`release` branches by prefix |
@@ -196,6 +196,40 @@ Hotfixes still open their `[back-merge]` PR towards develop by default; set
 `flow.hotfix.backmerge` equal to `flow.hotfix.base` to turn that off and let
 hotfixes reach develop through the ordinary chain instead.
 
+#### When the promotion conflicts
+
+A `develop → staging` PR that conflicts is the classic way staging leaks
+back into develop: GitHub's **Resolve conflicts** button, and most people's
+reflex, merge staging *into develop* to make the PR mergeable. `flow promote`
+checks for conflicts first (`git merge-tree`, git ≥ 2.38) and, when it finds
+some, never opens the PR from develop itself:
+
+```
+$ flow promote
+==> develop and staging conflict — resolving on promote/develop-into-staging so develop itself is not touched
+==> merge origin/staging into promote/develop-into-staging
+CONFLICT (content): Merge conflict in app.txt
+
+Resolve the conflicts, then:
+    git add <files>
+    git commit
+    flow promote
+$ vim app.txt; git add app.txt; git commit
+$ flow promote                         # on promote/develop-into-staging: push, PR → staging
+==> push promote/develop-into-staging
+==> open PR promote/develop-into-staging → staging
+==> done — merge on GitHub with 'Create a merge commit'. Afterwards: git checkout develop; git branch -D promote/develop-into-staging
+```
+
+The promotion branch `promote/<from>-into-<to>` is cut from the remote
+`from`, the remote `to` is merged into it and the conflicts are yours to
+resolve there. Running `flow promote` on that branch pushes it and opens the
+PR `promote/… → to` (merging either side again first if they moved on).
+After the PR merges, `to` contains `from` plus the resolution, `from` has not
+changed by a single commit, and the next `flow promote` lists only what is
+new. Delete the promotion branch once merged; `flow promote` refuses to cut
+a new one while the old one exists.
+
 ### How the base is kept current
 
 `start` and `sync` share one rule: the base is only ever **fast-forwarded**
@@ -231,7 +265,10 @@ nor on the remote. `start` and `sync` both refuse a diverged base, as above.
 
 `promote` refuses a source that is not in `flow.envs`, the last environment
 of the chain, and a source or target missing on the remote. A target that
-already has everything is reported as "nothing to promote" and succeeds.
+already has everything is reported as "nothing to promote" and succeeds. On
+a conflict it refuses a dirty working tree and an already existing
+promotion branch; on the promotion branch it refuses to continue while a
+merge is still in progress.
 
 `start` also refuses, before touching anything, a branch name git cannot
 create: a branch named like a parent path (`hotfix` blocks `hotfix/5.7.0`)
