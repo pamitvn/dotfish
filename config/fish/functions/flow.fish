@@ -1,16 +1,18 @@
 # flow — Multi-Environment Flow: git-flow starts branches, GitHub PRs finish them.
 #
 #   flow feature start <name>              sync develop, then git flow feature start
-#   flow feature finish [name] [opts]      rebase onto base, push, PR → base
+#   flow feature finish [name]             rebase onto develop, fast-forward develop, push (no PR)
 #   flow hotfix start <name>               sync main, then git flow hotfix start
 #   flow hotfix finish [name] [opts]       PR → main, plus a [back-merge] PR
 #   flow release start <version>           sync develop, then git flow release start
 #   flow release finish [name] [opts]      PR → main, plus a [back-merge] PR
 #   flow finish [name] [opts]              finish the branch you are on; type from its prefix
+#   flow promote [from] [--draft] [--web]  PR from one environment to the next (flow.envs)
 #   flow sync [branch]                     back to the base branch, fast-forwarded
 #   flow config                            show the resolved branches
 #
-#   finish opts:  --draft   open PR(s) as draft
+#   finish opts (hotfix/release, or flow.feature.finish=pr):
+#                 --draft   open PR(s) as draft
 #                 --no-pr   rebase + push only
 #                 --web     open the created PR in the browser
 #
@@ -18,10 +20,12 @@
 # main changes only through reviewed pull requests that is exactly what must
 # never happen. This command keeps git-flow for *starting* branches (topology
 # and prefixes come from its config, and the base is fast-forwarded from the
-# remote first) and replaces *finishing* with rebase → push --force-with-lease
-# → gh pr create. Once the PR has merged, `flow sync` returns to the base and
-# fast-forwards it. Helpers and the per-repo config keys live in
-# conf.d/75-git-flow.fish.
+# remote first). *Finishing* a feature is rebase → fast-forward develop → push;
+# finishing a hotfix or release is rebase → push --force-with-lease → gh pr
+# create. Once a PR has merged, `flow sync` returns to the base and
+# fast-forwards it. Environments (develop → staging → main, `flow.envs`) move
+# forward with `flow promote`: a PR to the next environment, never a merge
+# back. Helpers and the per-repo config keys live in conf.d/75-git-flow.fish.
 function flow --description 'Multi-Environment git flow: start with git-flow, finish via GitHub PR'
     set -l type $argv[1]
     set -l action $argv[2]
@@ -39,6 +43,8 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             end
         case finish
             __flow_finish_auto $argv[2..-1]
+        case promote
+            __flow_promote $argv[2..-1]
         case sync
             __flow_sync $argv[2..-1]
         case config
@@ -47,6 +53,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
                 remote $__flow_remote \
                 develop $__flow_develop \
                 master $__flow_master \
+                envs "$__flow_envs" \
                 'feature prefix' $__flow_prefix_feature \
                 'feature base' $__flow_feature_base \
                 'hotfix prefix' $__flow_prefix_hotfix \
@@ -64,12 +71,13 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             echo 'usage: flow feature|hotfix|release start <name>'
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
             echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
+            echo '       flow promote [from] [--draft] [--web]   (PR to the next environment)'
             echo '       flow sync [branch]'
             echo '       flow config'
             test -z "$type"; and return 2
             return 0
         case '*'
-            echo "flow: unknown command '$type' (feature|hotfix|release|finish|sync|config)" >&2
+            echo "flow: unknown command '$type' (feature|hotfix|release|finish|promote|sync|config)" >&2
             return 2
     end
 end

@@ -151,7 +151,7 @@ paru = "asdf"
 [[module]]
 name = "git-flow"
 order = 75
-description = "flow: git-flow branches on a fresh base, finished via GitHub PRs (main never merged locally)"
+description = "flow: git-flow branches on a fresh base; features merged into develop locally, hotfixes/releases and promotions (develop → staging → main) via GitHub PRs; main never merged locally"
 default = true
 files = [
   "fish/conf.d/75-git-flow.fish",

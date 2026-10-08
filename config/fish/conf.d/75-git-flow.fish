@@ -3,21 +3,32 @@
 # (Module metadata: modules.toml)
 #
 # `git flow <type> finish` always merges into main (and develop) locally. This
-# Module never runs it: `flow <type> finish` (or plain `flow finish`, which
-# reads the type off the branch prefix) rebases the topic branch onto its
-# base, force-pushes with lease and opens pull request(s) with gh. Integration
-# happens on GitHub with "Rebase and merge"; main is never checked out or
-# merged on the machine.
+# Module never runs it. `flow feature finish` rebases the feature onto develop,
+# fast-forwards develop to it and pushes — develop is the team's working
+# branch, no PR gate. `flow hotfix|release finish` rebases onto the base,
+# force-pushes with lease and opens pull request(s) with gh; integration into
+# main happens on GitHub with "Rebase and merge", and main is never checked
+# out or merged on the machine. Plain `flow finish` reads the type off the
+# branch prefix.
 #
 # Branch topology comes from git-flow's own config (gitflow.branch.master,
 # gitflow.branch.develop, gitflow.prefix.*). PR targets can be overridden per
 # repo with git config:
-#   flow.feature.base       PR base for features    (default gitflow.branch.develop)
+#   flow.feature.base       finish target for features (default gitflow.branch.develop)
 #   flow.hotfix.base        PR base for hotfixes    (default gitflow.branch.master)
 #   flow.hotfix.backmerge   second hotfix PR base   (default gitflow.branch.develop)
 #   flow.release.base       PR base for releases    (default gitflow.branch.master)
 #   flow.release.backmerge  second release PR base  (default gitflow.branch.develop)
 #   flow.remote             remote name             (default origin)
+#   flow.envs               ordered environment chain, space separated
+#                           (default "<develop> <master>", e.g. "develop staging main")
+#   flow.feature.finish     local (default): merge into the feature base locally
+#                           and push; pr: rebase, push, open a PR instead
+#
+# `flow promote [from]` moves one environment forward along flow.envs by
+# opening a PR from → next (develop → staging, staging → main). Nothing is
+# checked out or merged locally and NO back-merge PR is opened: the chain only
+# flows forward, so develop is never rewritten under the people working on it.
 #
 # Optional gate: define `flow_preflight` in profile.local.fish. It runs on the
 # rebased topic branch before anything is pushed, with $argv[1] =
@@ -52,6 +63,7 @@ function __flow_load
     set -g __flow_hotfix_backmerge (__flow_cfg flow.hotfix.backmerge $__flow_develop)
     set -g __flow_release_base (__flow_cfg flow.release.base $__flow_master)
     set -g __flow_release_backmerge (__flow_cfg flow.release.backmerge $__flow_develop)
+    set -g __flow_envs (__flow_cfg flow.envs "$__flow_develop $__flow_master" | string replace -a , ' ' | string split -n ' ')
 end
 
 function __flow_info
@@ -90,7 +102,7 @@ end
 
 # Environment branches are never finished, whatever the prefix config says.
 function __flow_assert_not_protected --argument-names branch
-    if contains -- $branch $__flow_master $__flow_develop main staging develop
+    if contains -- $branch $__flow_master $__flow_develop $__flow_envs main staging develop
         echo "flow: refusing to finish protected branch '$branch'" >&2
         return 1
     end
@@ -253,15 +265,58 @@ function __flow_start --argument-names type
     end
 end
 
+# Finish <branch> into <base> locally, no PR: fast-forward <base> from the
+# remote, rebase <branch> onto it, fast-forward <base> to <branch>, push it.
+# Linear history, same result as "Rebase and merge" on GitHub.
+function __flow_finish_local --argument-names type branch base
+    set -l has_remote (command git remote get-url $__flow_remote >/dev/null 2>&1; and echo 1)
+    if test -n "$has_remote"
+        __flow_sync_branch $base; or return 1
+    else if not command git show-ref --verify --quiet refs/heads/$base
+        echo "flow: base branch '$base' does not exist locally" >&2
+        return 1
+    end
+    if test (command git rev-parse --abbrev-ref HEAD) != $branch
+        command git checkout -q $branch; or return 1
+    end
+    __flow_info "rebase $branch onto $base"
+    if not command git rebase $base
+        printf '\nRebase stopped on conflicts. Resolve them, then:\n    git rebase --continue\n    flow %s finish\n(or: git rebase --abort)\n' $type >&2
+        return 1
+    end
+    if functions -q flow_preflight
+        __flow_info "preflight"
+        if not flow_preflight $type $branch
+            echo "flow: preflight failed — nothing merged" >&2
+            return 1
+        end
+    end
+    __flow_info "fast-forward $base to $branch"
+    command git checkout -q $base; or return 1
+    command git merge --ff-only -q $branch; or return 1
+    if test -n "$has_remote"
+        __flow_info "push $base"
+        command git push -q -u $__flow_remote $base; or return 1
+    end
+    set -l hint "git branch -d $branch"
+    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
+        set hint "$hint; git push $__flow_remote --delete $branch"
+    end
+    __flow_info "done — $branch is in $base and pushed. Remove it with: $hint"
+end
+
 # `flow sync [branch]`: go back to a base branch and fast-forward it. With no
-# argument the base is inferred from the branch you are on (hotfix prefix →
-# master; feature, release and anything else → develop).
+# argument the base is inferred from the branch you are on (an environment
+# branch → itself; hotfix prefix → master; feature, release and anything else
+# → develop).
 function __flow_sync
     __flow_load
     set -l base $argv[1]
     if test -z "$base"
         set -l current (command git rev-parse --abbrev-ref HEAD)
-        if string match -q -- "$__flow_prefix_hotfix*" $current
+        if contains -- $current $__flow_envs
+            set base $current
+        else if string match -q -- "$__flow_prefix_hotfix*" $current
             set base $__flow_master
         else
             set base $__flow_develop
@@ -282,7 +337,66 @@ function __flow_open_pr --argument-names branch base title
         return 0
     end
     __flow_info "open PR $branch → $base"
-    gh pr create --base $base --head $branch --title $title --fill $flags
+    contains -- --body $flags; or set -a flags --fill
+    gh pr create --base $base --head $branch --title $title $flags
+end
+
+# `flow promote [from] [--draft] [--web]`: open the PR that moves one
+# environment forward along flow.envs. Only the remote is consulted — nothing is
+# checked out, merged or pushed — and no back-merge is opened: commits the
+# target already has that the source lacks (hotfixes) stay where they are.
+function __flow_promote
+    argparse draft web -- $argv; or return 2
+    __flow_load
+    set -l from $argv[1]
+    test -z "$from"; and set from (command git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    set -l i (contains -i -- "$from" $__flow_envs)
+    if test -z "$i"
+        echo "flow: '$from' is not an environment branch (flow.envs: $__flow_envs)" >&2
+        return 2
+    end
+    if test $i -eq (count $__flow_envs)
+        echo "flow: '$from' is the last environment in the chain ($__flow_envs) — nothing to promote to" >&2
+        return 2
+    end
+    set -l to $__flow_envs[(math $i + 1)]
+
+    __flow_info "fetch $__flow_remote"
+    command git fetch --prune $__flow_remote; or return 1
+    for b in $from $to
+        if not command git show-ref --verify --quiet refs/remotes/$__flow_remote/$b
+            echo "flow: $__flow_remote/$b not found" >&2
+            return 1
+        end
+    end
+    set -l rfrom $__flow_remote/$from
+    set -l rto $__flow_remote/$to
+    set -l ahead (command git rev-list --count $rto..$rfrom)
+    set -l behind (command git rev-list --count $rfrom..$rto)
+    if test $ahead -eq 0
+        __flow_info "$to already has everything on $from — nothing to promote"
+        return 0
+    end
+    __flow_info "$ahead commits on $from not yet on $to:"
+    command git log --oneline --no-decorate -8 $rto..$rfrom | string replace -r '^' '    '
+    test $ahead -gt 8; and echo "    … and "(math $ahead - 8)" more"
+    if test $behind -gt 0
+        __flow_info "$to has $behind commits not on $from (hotfixes?) — they stay there; nothing is merged back into $from"
+    end
+
+    if not type -q gh
+        echo "flow: gh not installed — open the PR $from → $to by hand" >&2
+        return 1
+    end
+    set -l flags
+    set -q _flag_draft; and set -a flags --draft
+    set -q _flag_web; and set -a flags --web
+    set -l body "Promote $from → $to ($ahead commits).
+
+Merge with **Create a merge commit** so $to keeps $from's commits as they are.
+Do not merge $to back into $from — the chain only flows forward."
+    __flow_open_pr $from $to "Promote $from → $to" --body $body $flags; or return 1
+    __flow_info "done — merge on GitHub with 'Create a merge commit'. No back-merge into $from; nothing was touched locally."
 end
 
 # The finish pipeline; `flow` dispatches here after argparse.
@@ -307,6 +421,14 @@ function __flow_finish --argument-names type
     set -l branch (__flow_resolve_branch $prefix "$argv[1]"); or return 1
     __flow_assert_not_protected $branch; or return 1
     __flow_require_clean; or return 1
+
+    # Features land on the team's working branch locally; only hotfixes and
+    # releases (and promotions) go through pull requests.
+    if test $type = feature; and test (__flow_cfg flow.feature.finish local) != pr
+        __flow_finish_local $type $branch $base
+        return
+    end
+
     if test (command git rev-parse --abbrev-ref HEAD) != $branch
         command git checkout -q $branch; or return 1
     end

@@ -1,19 +1,25 @@
-# git-flow — flow: git-flow branches on a fresh base, finished via GitHub PRs
+# git-flow — flow: features merged into develop locally; hotfixes, releases and promotions via GitHub PRs
 
-With this Module on, you keep git-flow's branch types and naming but the
-integration branches change only through pull requests. `flow` wraps the
+With this Module on, you keep git-flow's branch types and naming. Features
+land on develop locally — it is the team's working branch — while main and
+the environment chain change only through pull requests. `flow` wraps the
 whole life of a topic branch:
 
 1. `flow <type> start` — fetch and **fast-forward the base** (develop, or
    main for hotfixes), then let git-flow create the branch off it. You never
    start from a stale base, and git-flow's "branches have diverged" refusal no
    longer trips.
-2. `flow <type> finish` — rebase the branch onto its base, `git push
+2. `flow feature finish` — fast-forward develop from the remote, rebase the
+   feature onto it, fast-forward develop to the feature, push. No PR.
+   `flow hotfix|release finish` — rebase onto the base, `git push
    --force-with-lease`, `gh pr create`. `main` is never merged or tagged on
    your machine; integration happens on GitHub with **Rebase and merge**, after
    review and CI.
 3. `flow sync` — once the PR is in, go back to the base and fast-forward it
    again, ready for the next `start`.
+4. `flow promote` — move an environment forward (develop → staging → main)
+   with a PR to the next one in the chain. Forward only: nothing is merged
+   back, so develop is never rewritten under the people working on it.
 
 `git flow … finish` is never run: it merges into `main` locally, which is the
 one thing this flow is designed to avoid.
@@ -41,11 +47,12 @@ Machine-local tweaks belong in `profile.local.fish`.
 | `flow feature start <name>` | fast-forward develop from the remote, then `git flow feature start <name>` off it |
 | `flow hotfix start <name>` | fast-forward main from the remote, then `git flow hotfix start <name>` off it |
 | `flow release start <version>` | fast-forward develop from the remote, then `git flow release start <version>` off it |
-| `flow feature finish [name]` | rebase onto the feature base, `git push --force-with-lease`, `gh pr create` → feature base |
+| `flow feature finish [name]` | fast-forward develop from the remote, rebase the feature onto it, fast-forward develop to the feature, push develop. No PR (`flow.feature.finish pr` restores the PR path) |
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
-| `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: main when you are on a hotfix branch, develop otherwise |
+| `flow promote [from]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge |
+| `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, main when you are on a hotfix branch, develop otherwise |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `finish` flags, `sync` bases, and your local `feature`/`hotfix`/`release` branches by prefix |
 
@@ -53,11 +60,38 @@ Machine-local tweaks belong in `profile.local.fish`.
 <name> <base>`); that base is the one synced and branched from. Any other
 flags are passed to git-flow untouched.
 
-`finish` flags: `--draft` (open PR(s) as draft), `--no-pr` (rebase and push
-only), `--web` (open the created PR in the browser). The branch name is
-optional — with none, the branch you are on is finished — and the prefix may
-be omitted (`flow feature finish 1858` resolves to `TRUST-1858` when the
-feature prefix is `TRUST-`).
+`finish` flags, for hotfix and release PRs: `--draft` (open PR(s) as draft),
+`--no-pr` (rebase and push only), `--web` (open the created PR in the
+browser). The branch name is optional — with none, the branch you are on is
+finished — and the prefix may be omitted (`flow feature finish 1858`
+resolves to `TRUST-1858` when the feature prefix is `TRUST-`).
+
+### Features merge into develop locally
+
+Pull requests gate main and the environment chain, not the team's working
+branch. Finishing a feature therefore never involves GitHub:
+
+```
+$ flow finish                          # on TRUST-1858
+==> fetch origin
+==> fast-forward staging-product-review (1 commits)   # a teammate's push is picked up first
+==> rebase TRUST-1858 onto staging-product-review
+==> fast-forward staging-product-review to TRUST-1858
+==> push staging-product-review
+==> done — TRUST-1858 is in staging-product-review and pushed. Remove it with: git branch -d TRUST-1858
+```
+
+Develop is fast-forwarded from the remote first (a diverged develop stops the
+command, as for any base), the feature is rebased onto it, develop is
+fast-forwarded to the feature and pushed. History stays linear — the same
+result GitHub's "Rebase and merge" would give — and you end up on develop.
+`--draft`, `--no-pr` and `--web` do not apply; a `flow_preflight` gate still
+runs before the merge. If the push is rejected because someone pushed in the
+meantime, run `flow finish` again: develop is re-synced and the feature
+re-rebased.
+
+A repo whose develop is protected on GitHub can keep the PR path with
+`git config flow.feature.finish pr`.
 
 Plain `flow finish` skips the type: on `TRUST-1858` it runs `flow feature
 finish`, on `hotfix/quota-mail` `flow hotfix finish`, on `release/1.2.0`
@@ -77,12 +111,47 @@ The topology is read from git-flow's own config in the current repo, so
 | Setting | Read from | Default |
 |---|---|---|
 | main — hotfix/release start base, hotfix/release PR base | `gitflow.branch.master` | `main` |
-| develop — feature/release start base, feature PR base, back-merge base | `gitflow.branch.develop` | `develop` |
+| develop — feature/release start base, feature merge target, back-merge base | `gitflow.branch.develop` | `develop` |
 | feature prefix | `gitflow.prefix.feature` | `feature/` |
 | hotfix prefix | `gitflow.prefix.hotfix` | `hotfix/` |
 | release prefix | `gitflow.prefix.release` | `release/` |
+| environment chain, for `promote` | `flow.envs` | `<develop> <main>` |
 
 The PR bases can be pointed elsewhere per repo — see Tweaks.
+
+### Promoting between environments
+
+With three environments the chain is declared once per repo:
+
+```sh
+git config flow.envs "develop staging main"
+```
+
+`flow promote` opens the PR that carries one environment into the next:
+`develop → staging` when you are on develop (or pass `develop`),
+`staging → main` from staging. It fetches, prints the commits the target
+does not have yet, and calls `gh pr create` — the local checkout is never
+switched, nothing is merged or pushed from your machine, and the last
+environment in the chain has nothing to promote to.
+
+Two rules keep the chain honest, and both are deliberate:
+
+- **Forward only, no back-merge.** Promotion never opens a second PR from
+  the target back into the source. Features land on develop through their
+  own PRs; develop reaches staging and main only through promotions. Commits
+  the target has that the source lacks (a hotfix merged to main, say) are
+  reported and left alone — pull them down with a hotfix `[back-merge]` PR
+  if you want them, not by merging staging into develop.
+- **Merge the promotion PR with "Create a merge commit"**, not "Rebase and
+  merge". Rebasing rewrites the SHAs, so staging would carry copies of
+  develop's commits and every later promotion would show the same commits
+  again. A merge commit keeps them identical across environments and the
+  next `flow promote` shows only what is genuinely new. Topic-branch PRs
+  from `finish` keep using "Rebase and merge" as before.
+
+Hotfixes still open their `[back-merge]` PR towards develop by default; set
+`flow.hotfix.backmerge` equal to `flow.hotfix.base` to turn that off and let
+hotfixes reach develop through the ordinary chain instead.
 
 ### How the base is kept current
 
@@ -109,11 +178,17 @@ to its remote counterpart, never merged, rebased or reset.
 - the rebase hits conflicts — resolve them, `git rebase --continue`, and run
   `flow <type> finish` again (or `git rebase --abort`)
 - a `flow_preflight` gate (see Tweaks) returns non-zero
+- (feature) develop has diverged from the remote, or the fast-forward into
+  it is not possible
 
 An already-open PR for the same branch and base is reused, not duplicated.
 
 `sync` refuses a dirty working tree and a branch that exists neither locally
 nor on the remote. `start` and `sync` both refuse a diverged base, as above.
+
+`promote` refuses a source that is not in `flow.envs`, the last environment
+of the chain, and a source or target missing on the remote. A target that
+already has everything is reported as "nothing to promote" and succeeds.
 
 `start` also refuses, before touching anything, a branch name git cannot
 create: a branch named like a parent path (`hotfix` blocks `hotfix/5.7.0`)
@@ -136,16 +211,12 @@ $ git commit -am "feat: ..."
 $ flow finish                          # same as: flow feature finish
 ==> feature branch — flow feature finish
 ==> fetch origin
-==> rebase TRUST-1858 onto origin/staging-product-review
-==> push TRUST-1858 (force-with-lease)
-==> open PR TRUST-1858 → staging-product-review
-https://github.com/org/repo/pull/123
-==> done — merge on GitHub with 'Rebase and merge'. 'staging-product-review' was not touched locally.
-$ flow sync                            # after the PR merged
-==> fetch origin
-==> fast-forward staging-product-review (1 commits)
-==> checkout staging-product-review
-==> on staging-product-review — up to date with origin/staging-product-review
+==> staging-product-review is up to date with origin/staging-product-review
+==> rebase TRUST-1858 onto staging-product-review
+==> fast-forward staging-product-review to TRUST-1858
+==> push staging-product-review
+==> done — TRUST-1858 is in staging-product-review and pushed. Remove it with: git branch -d TRUST-1858
+$ git branch -d TRUST-1858             # you are on staging-product-review, current
 ```
 
 A hotfix, and a release:
@@ -162,6 +233,22 @@ $ flow release finish
 ==> open PR release/1.2.0 → main
 ==> open PR release/1.2.0 → staging-product-review
 $ flow sync                            # back to develop, current
+```
+
+Promoting through the environments, once develop has what it needs:
+
+```
+$ flow promote                         # on develop → PR develop → staging
+==> fetch origin
+==> 3 commits on develop not yet on staging:
+    917f8dd feat: thing 3
+    6099311 feat: thing 2
+    5212706 feat: thing 1
+==> staging has 1 commits not on develop (hotfixes?) — they stay there; nothing is merged back into develop
+==> open PR develop → staging
+https://github.com/org/repo/pull/130
+==> done — merge on GitHub with 'Create a merge commit'. No back-merge into develop; nothing was touched locally.
+$ flow promote staging                 # later: PR staging → main
 ```
 
 Odds and ends:
@@ -190,12 +277,14 @@ preflight            none
   config (unset keys fall back to the table above):
 
   ```sh
-  git config flow.feature.base develop          # feature PRs → develop
+  git config flow.feature.base develop          # features finish into develop
+  git config flow.feature.finish pr             # features via PR instead of local merge
   git config flow.hotfix.base main              # hotfix PRs → main
   git config flow.hotfix.backmerge staging      # second hotfix PR → staging
   git config flow.release.base main             # release PRs → main
   git config flow.release.backmerge staging     # second release PR → staging
   git config flow.remote upstream               # push/fetch remote
+  git config flow.envs "develop staging main"   # promotion chain (default: develop main)
   ```
 
   When a `backmerge` key equals its type's base, no second PR is opened.
@@ -225,9 +314,10 @@ preflight            none
   merged). Delete it yourself with `git branch -D <branch>` once the PR shows
   as merged.
 - **Missing tools**: `flow … start` needs `git-flow` and tells you to install
-  it otherwise; `flow … finish` and `flow sync` need only git, plus `gh` for
-  the PR step — with `gh` absent the branch is still pushed and the command
-  says to open the PR by hand.
+  it otherwise; `flow feature finish` and `flow sync` need only git;
+  `flow hotfix|release finish` and `flow promote` also need `gh` for the PR
+  step — with `gh` absent the branch is still pushed and the command says to
+  open the PR by hand.
 - **Need the classic local merge after all?** `git flow <type> finish` is still
   there — the Module shadows nothing — but it merges into `main` locally,
   which is exactly what this flow is designed to avoid.

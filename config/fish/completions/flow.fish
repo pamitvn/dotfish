@@ -21,6 +21,7 @@ complete -c flow -n __fish_use_subcommand -a feature -d 'Feature branch (from de
 complete -c flow -n __fish_use_subcommand -a hotfix -d 'Hotfix branch (from main)'
 complete -c flow -n __fish_use_subcommand -a release -d 'Release branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a finish -d 'Finish the branch you are on (type from its prefix)'
+complete -c flow -n __fish_use_subcommand -a promote -d 'PR from one environment to the next'
 complete -c flow -n __fish_use_subcommand -a sync -d 'Back to the base branch, fast-forwarded'
 complete -c flow -n __fish_use_subcommand -a config -d 'Show resolved branches'
 
@@ -29,6 +30,15 @@ function __flow_complete_bases
     printf '%s\n' $__flow_develop $__flow_master
 end
 complete -c flow -n '__fish_seen_subcommand_from sync' -a '(__flow_complete_bases)'
+
+# promote: every environment but the last.
+function __flow_complete_promote_sources
+    __flow_load
+    printf '%s\n' $__flow_envs[1..-2]
+end
+complete -c flow -n '__fish_seen_subcommand_from promote' -a '(__flow_complete_promote_sources)'
+complete -c flow -n '__fish_seen_subcommand_from promote' -l draft -d 'Open the PR as draft'
+complete -c flow -n '__fish_seen_subcommand_from promote' -l web -d 'Open the PR in the browser'
 
 set -l topic '__fish_seen_subcommand_from feature hotfix release'
 complete -c flow -n "$topic; and not __fish_seen_subcommand_from start finish" -a start -d 'Create the branch via git flow'
