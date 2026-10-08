@@ -8,7 +8,10 @@
 #   flow release start <version>           sync develop, then git flow release start
 #   flow release finish [name] [opts]      PR → main, plus a [back-merge] PR
 #   flow finish [name] [opts]              finish the branch you are on; type from its prefix
-#   flow promote [from] [--draft] [--web]  PR from one environment to the next (flow.envs)
+#   flow promote [from] [opts]             PR from one environment to the next (flow.envs)
+#                 --auto    enable GitHub auto-merge with a merge commit
+#                 --merge   merge the PR now with a merge commit
+#                 --draft / --web as for finish
 #   flow sync [branch]                     back to the base branch, fast-forwarded
 #   flow config                            show the resolved branches
 #
@@ -76,7 +79,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             echo '       flow feature|hotfix|release start <name>'
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
             echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
-            echo '       flow promote [from] [--draft] [--web]   (PR to the next environment)'
+            echo '       flow promote [from] [--draft|--auto|--merge] [--web]   (PR to the next environment)'
             echo '       flow sync [branch]'
             echo '       flow config'
             test -z "$type"; and return 2

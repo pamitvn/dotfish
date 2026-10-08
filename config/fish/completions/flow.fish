@@ -40,6 +40,8 @@ end
 complete -c flow -n '__fish_seen_subcommand_from promote' -a '(__flow_complete_promote_sources)'
 complete -c flow -n '__fish_seen_subcommand_from promote' -l draft -d 'Open the PR as draft'
 complete -c flow -n '__fish_seen_subcommand_from promote' -l web -d 'Open the PR in the browser'
+complete -c flow -n '__fish_seen_subcommand_from promote' -l auto -d 'Enable auto-merge with a merge commit'
+complete -c flow -n '__fish_seen_subcommand_from promote' -l merge -d 'Merge the PR now with a merge commit'
 
 set -l topic '__fish_seen_subcommand_from feature hotfix release'
 complete -c flow -n "$topic; and not __fish_seen_subcommand_from start finish" -a start -d 'Create the branch via git flow'

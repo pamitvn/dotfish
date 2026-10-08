@@ -25,8 +25,10 @@
 #   flow.feature.finish     local (default): merge into the feature base locally
 #                           and push; pr: rebase, push, open a PR instead
 #
-# `flow promote [from]` moves one environment forward along flow.envs by
-# opening a PR from → next (develop → staging, staging → main). Nothing is
+# `flow promote [from] [--draft|--auto|--merge] [--web]` moves one environment
+# forward along flow.envs by opening a PR from → next (develop → staging,
+# staging → main). GitHub cannot pin a merge method on a PR, so --auto enables
+# auto-merge with a merge commit and --merge merges right away. Nothing is
 # checked out or merged locally and NO back-merge PR is opened: the chain only
 # flows forward, so develop is never rewritten under the people working on it.
 # When from and next would conflict, the PR is not opened from develop itself
@@ -354,8 +356,11 @@ end
 # checked out, merged or pushed — and no back-merge is opened: commits the
 # target already has that the source lacks (hotfixes) stay where they are.
 function __flow_promote
-    argparse draft web -- $argv; or return 2
+    argparse -x auto,merge -x draft,merge -x draft,auto draft web auto merge -- $argv; or return 2
     __flow_load
+    set -l mode
+    set -q _flag_auto; and set mode auto
+    set -q _flag_merge; and set mode now
     set -l from $argv[1]
     if test -z "$from"
         set from (command git rev-parse --abbrev-ref HEAD 2>/dev/null)
@@ -366,7 +371,7 @@ function __flow_promote
             set -q _flag_web; and set -a flags --web
             __flow_info "fetch $__flow_remote"
             command git fetch --prune $__flow_remote; or return 1
-            __flow_promote_finish $m[2] $m[3] $flags
+            __flow_promote_finish $m[2] $m[3] "$mode" $flags
             return
         end
     end
@@ -410,7 +415,7 @@ function __flow_promote
     # Would the merge conflict? (git ≥ 2.38; older git cannot tell — go on.)
     command git merge-tree --write-tree --no-messages $rto $rfrom >/dev/null 2>&1
     if test $status -eq 1
-        __flow_promote_conflicted $from $to $flags
+        __flow_promote_conflicted $from $to "$mode" $flags
         return
     end
 
@@ -423,7 +428,28 @@ function __flow_promote
 Merge with **Create a merge commit** so $to keeps $from's commits as they are.
 Do not merge $to back into $from — the chain only flows forward."
     __flow_open_pr $from $to "Promote $from → $to" --body $body $flags; or return 1
-    __flow_info "done — merge on GitHub with 'Create a merge commit'. No back-merge into $from; nothing was touched locally."
+    __flow_promote_merge $from $to "$mode"; or return 1
+    test -z "$mode"; and __flow_info "done — merge on GitHub with 'Create a merge commit'. No back-merge into $from; nothing was touched locally."
+    return 0
+end
+
+# Merge the promotion PR whose head is <head> with a merge commit — now
+# (mode now) or by enabling GitHub auto-merge (mode auto), which pins the
+# method whatever the button on the PR defaults to. No mode: do nothing.
+function __flow_promote_merge --argument-names head to mode
+    switch "$mode"
+        case now
+            __flow_info "merge PR $head → $to with a merge commit"
+            gh pr merge $head --merge; or return 1
+            __flow_info "done — $to now has $head. No back-merge; nothing was touched locally."
+        case auto
+            __flow_info "enable auto-merge (merge commit) for PR $head → $to"
+            if not gh pr merge $head --auto --merge
+                echo "flow: auto-merge could not be enabled — the repo needs 'Allow auto-merge' and a ruleset with required checks or reviews on $to. Merge it on GitHub with 'Create a merge commit'." >&2
+                return 1
+            end
+            __flow_info "done — GitHub merges it with a merge commit once checks and reviews pass. No back-merge."
+    end
 end
 
 # The promotion branch for a conflicting from → to.
@@ -434,8 +460,8 @@ end
 # from and to conflict: cut promote/<from>-into-<to> off the remote from,
 # merge the remote to into it and hand the conflicts to the user. `flow
 # promote` on that branch continues with __flow_promote_finish.
-function __flow_promote_conflicted --argument-names from to
-    set -l flags $argv[3..-1]
+function __flow_promote_conflicted --argument-names from to mode
+    set -l flags $argv[4..-1]
     set -l pbranch (__flow_promote_branch $from $to)
     __flow_info "$from and $to conflict — resolving on $pbranch so $from itself is not touched"
     echo "    (do not use GitHub's 'Resolve conflicts' on a $from → $to PR: it merges $to into $from)"
@@ -447,7 +473,7 @@ function __flow_promote_conflicted --argument-names from to
     command git checkout -q -b $pbranch $__flow_remote/$from; or return 1
     __flow_info "merge $__flow_remote/$to into $pbranch"
     if command git merge --no-edit $__flow_remote/$to
-        __flow_promote_finish $from $to $flags
+        __flow_promote_finish $from $to "$mode" $flags
         return
     end
     printf '\nResolve the conflicts, then:\n    git add <files>\n    git commit\n    flow promote\n(or give up: git merge --abort; git checkout %s; git branch -D %s)\n' $from $pbranch >&2
@@ -456,8 +482,8 @@ end
 
 # On promote/<from>-into-<to>: make sure both sides are in, push, open the PR
 # promote/… → to. Nothing happens to <from>.
-function __flow_promote_finish --argument-names from to
-    set -l flags $argv[3..-1]
+function __flow_promote_finish --argument-names from to mode
+    set -l flags $argv[4..-1]
     set -l pbranch (__flow_promote_branch $from $to)
     if command git rev-parse -q --verify MERGE_HEAD >/dev/null
         echo "flow: merge still in progress on $pbranch — resolve, git add, git commit, then flow promote" >&2
@@ -485,7 +511,12 @@ function __flow_promote_finish --argument-names from to
 $from and $to conflicted; the conflicts were resolved on this branch, cut from $from. $from itself was not touched.
 Merge with **Create a merge commit**, then delete this branch. Do not merge $to back into $from."
     __flow_open_pr $pbranch $to "Promote $from → $to" --body $body $flags; or return 1
-    __flow_info "done — merge on GitHub with 'Create a merge commit'. Afterwards: git checkout $from; git branch -D $pbranch"
+    __flow_promote_merge $pbranch $to "$mode"; or return 1
+    if test -z "$mode"
+        __flow_info "done — merge on GitHub with 'Create a merge commit'. Afterwards: git checkout $from; git branch -D $pbranch"
+    else
+        __flow_info "afterwards: git checkout $from; git branch -D $pbranch"
+    end
 end
 
 # The finish pipeline; `flow` dispatches here after argparse.

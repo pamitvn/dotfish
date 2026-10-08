@@ -94,7 +94,7 @@ without asking.
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
-| `flow promote [from]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge. On a conflict: cut `promote/<from>-into-<to>`, merge the target into it for you to resolve; `flow promote` on that branch pushes it and opens the PR |
+| `flow promote [from] [--auto\|--merge]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge. On a conflict: cut `promote/<from>-into-<to>`, merge the target into it for you to resolve; `flow promote` on that branch pushes it and opens the PR |
 | `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, main when you are on a hotfix branch, develop otherwise |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `init`/`finish`/`promote` flags, `sync` bases, promotable environments, and your local `feature`/`hotfix`/`release` branches by prefix |
@@ -176,6 +176,16 @@ git config flow.envs "develop staging main"
 does not have yet, and calls `gh pr create` — the local checkout is never
 switched, nothing is merged or pushed from your machine, and the last
 environment in the chain has nothing to promote to.
+
+GitHub cannot pin a merge method on a PR — the button defaults to whatever
+you used last in that repo — so two flags take the choice out of the click:
+`flow promote --auto` enables GitHub auto-merge **with a merge commit** (the
+repo needs "Allow auto-merge" and a ruleset with required checks or reviews
+on the target; otherwise it tells you to merge by hand), and
+`flow promote --merge` merges the PR right away with a merge commit, for a
+promotion that needs no review. Both also work from a promotion branch (see
+below). To enforce the method for everyone, add a ruleset on `staging` and
+`main` whose allowed merge method is Merge only.
 
 Two rules keep the chain honest, and both are deliberate:
 
