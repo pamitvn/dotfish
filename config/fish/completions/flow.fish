@@ -17,6 +17,7 @@ end
 
 complete -c flow -f
 
+complete -c flow -n __fish_use_subcommand -a init -d 'Configure this repo step by step'
 complete -c flow -n __fish_use_subcommand -a feature -d 'Feature branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a hotfix -d 'Hotfix branch (from main)'
 complete -c flow -n __fish_use_subcommand -a release -d 'Release branch (from develop)'
@@ -61,3 +62,4 @@ complete -c flow -n "$auto" -a '(__flow_complete_all_branches)'
 complete -c flow -n "$auto" -l draft -d 'Open PR(s) as draft'
 complete -c flow -n "$auto" -l no-pr -d 'Rebase and push only'
 complete -c flow -n "$auto" -l web -d 'Open the PR in the browser'
+complete -c flow -n '__fish_seen_subcommand_from init' -s d -l defaults -d 'Take every default without asking'

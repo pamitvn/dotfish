@@ -1,5 +1,6 @@
 # flow — Multi-Environment Flow: git-flow starts branches, GitHub PRs finish them.
 #
+#   flow init [--defaults]                 configure this repo step by step (git-flow + flow keys)
 #   flow feature start <name>              sync develop, then git flow feature start
 #   flow feature finish [name]             rebase onto develop, fast-forward develop, push (no PR)
 #   flow hotfix start <name>               sync main, then git flow hotfix start
@@ -43,6 +44,8 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             end
         case finish
             __flow_finish_auto $argv[2..-1]
+        case init
+            __flow_init $argv[2..-1]
         case promote
             __flow_promote $argv[2..-1]
         case sync
@@ -61,14 +64,16 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
                 'hotfix backmerge' $__flow_hotfix_backmerge \
                 'release prefix' $__flow_prefix_release \
                 'release base' $__flow_release_base \
-                'release backmerge' $__flow_release_backmerge
+                'release backmerge' $__flow_release_backmerge \
+                'feature finish' (__flow_cfg flow.feature.finish local)
             if functions -q flow_preflight
                 printf '%-20s %s\n' preflight 'flow_preflight (profile.local.fish)'
             else
                 printf '%-20s %s\n' preflight 'none'
             end
         case '' -h --help help
-            echo 'usage: flow feature|hotfix|release start <name>'
+            echo 'usage: flow init [--defaults]                       (configure this repo step by step)'
+            echo '       flow feature|hotfix|release start <name>'
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
             echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
             echo '       flow promote [from] [--draft] [--web]   (PR to the next environment)'
@@ -77,7 +82,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             test -z "$type"; and return 2
             return 0
         case '*'
-            echo "flow: unknown command '$type' (feature|hotfix|release|finish|promote|sync|config)" >&2
+            echo "flow: unknown command '$type' (init|feature|hotfix|release|finish|promote|sync|config)" >&2
             return 2
     end
 end

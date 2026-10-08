@@ -30,6 +30,9 @@
 # checked out or merged locally and NO back-merge PR is opened: the chain only
 # flows forward, so develop is never rewritten under the people working on it.
 #
+# `flow init` sets all of the above (and git-flow's own keys) step by step
+# for the current repo; see __flow_init.
+#
 # Optional gate: define `flow_preflight` in profile.local.fish. It runs on the
 # rebased topic branch before anything is pushed, with $argv[1] =
 # feature|hotfix|release and $argv[2] = branch name; a non-zero return aborts
@@ -465,4 +468,197 @@ function __flow_finish --argument-names type
         __flow_open_pr $branch $backmerge "[back-merge] $branch" $pr_flags; or return 1
     end
     __flow_info "done — merge on GitHub with 'Rebase and merge'. '$base' was not touched locally."
+end
+
+# ---------------------------------------------------------------------------
+# flow init — configure a repo step by step.
+
+# Ask one question; the answer lands in $__flow_answer (Enter keeps the
+# default). With --defaults, or when stdin is not a terminal, the default is
+# taken without asking. Not a command substitution on purpose: inside a
+# function that reads a pipeline, fish gives substitutions no stdin.
+function __flow_ask --argument-names prompt default
+    set -g __flow_answer $default
+    if set -q __flow_init_defaults; or not isatty stdin
+        return 0
+    end
+    set -l answer
+    read -l -P "$prompt [$default]: " answer; or return 1
+    set answer (string trim -- $answer)
+    test -n "$answer"; and set -g __flow_answer $answer
+    return 0
+end
+
+# Yes/no question; <default> is y or n. Returns 0 for yes, 1 for no, 2 on EOF.
+function __flow_ask_yn --argument-names prompt default
+    __flow_ask "$prompt (y/n)" $default; or return 2
+    string match -qir '^y' -- $__flow_answer
+end
+
+# Does <branch> exist locally or on the configured remote?
+function __flow_branch_known --argument-names branch
+    command git show-ref --verify --quiet refs/heads/$branch
+    or command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
+end
+
+# Make sure <branch> exists locally: track the remote copy if only that exists,
+# else offer to create it from <from> and push it.
+function __flow_init_branch --argument-names branch from has_remote
+    if command git show-ref --verify --quiet refs/heads/$branch
+        return 0
+    end
+    if test -n "$has_remote"; and command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
+        __flow_info "create $branch tracking $__flow_remote/$branch"
+        command git branch -q --track $branch $__flow_remote/$branch
+        return
+    end
+    if test -z "$from"; or not command git rev-parse --verify --quiet $from >/dev/null
+        echo "flow: branch '$branch' does not exist and there is nothing to create it from" >&2
+        return 1
+    end
+    if __flow_ask_yn "Branch '$branch' does not exist — create it from '$from'?" y
+        __flow_info "create $branch from $from"
+        command git branch -q $branch $from; or return 1
+        if test -n "$has_remote"; and __flow_ask_yn "Push '$branch' to $__flow_remote?" y
+            command git push -q -u $__flow_remote $branch; or return 1
+        end
+    else
+        echo "flow: '$branch' left missing — flow needs it; create it later with: git branch $branch $from" >&2
+    end
+end
+
+# `flow init [--defaults]`: walk through every setting flow and git-flow need
+# for this repo, prefilled from the current config or from what the repo looks
+# like, write them with `git config`, make sure the branches exist, and print
+# the result. Safe to re-run: current values become the defaults.
+function __flow_init
+    argparse d/defaults -- $argv; or return 2
+    if not command git rev-parse --is-inside-work-tree >/dev/null 2>&1
+        echo "flow: not inside a git repository" >&2
+        return 1
+    end
+    set -q _flag_defaults; and set -g __flow_init_defaults 1
+
+    set -l remotes (command git remote)
+    set -l remote_default (__flow_cfg flow.remote (test -n "$remotes[1]"; and echo $remotes[1]; or echo origin))
+    echo "flow init — answer each step, Enter keeps the [default]."
+    echo
+
+    # 1. remote
+    __flow_ask "Remote to push and open PRs against" $remote_default; or return 1
+    set -g __flow_remote $__flow_answer
+    set -l has_remote
+    if contains -- $__flow_remote $remotes
+        set has_remote 1
+        __flow_info "fetch $__flow_remote"
+        command git fetch -q --prune $__flow_remote; or echo "flow: fetch failed — going on with what is known locally" >&2
+    else
+        __flow_info "no remote '$__flow_remote' yet — branches will stay local"
+    end
+
+    # 2. production and development branches
+    set -l master_default (__flow_cfg gitflow.branch.master)
+    if test -z "$master_default"
+        set master_default main
+        __flow_branch_known main; or begin; __flow_branch_known master; and set master_default master; end
+    end
+    __flow_ask "Production branch (git-flow's master)" $master_default; or return 1
+    set -l master $__flow_answer
+
+    set -l develop_default (__flow_cfg gitflow.branch.develop develop)
+    __flow_ask "Development branch, where features land (git-flow's develop)" $develop_default; or return 1
+    set -l develop $__flow_answer
+    if test $develop = $master
+        echo "flow: develop and master must differ" >&2
+        set -e __flow_init_defaults
+        return 1
+    end
+
+    # 3. environment chain
+    set -l envs_default (__flow_cfg flow.envs)
+    if test -z "$envs_default"
+        set envs_default "$develop $master"
+        if __flow_branch_known staging; and not contains -- staging $develop $master
+            set envs_default "$develop staging $master"
+        end
+    end
+    echo "  Environments are promoted forward with 'flow promote' (PR to the next one), first to last."
+    __flow_ask "Environment chain, space separated" $envs_default; or return 1
+    set -l envs $__flow_answer
+    set -l envs_list (string replace -a , ' ' -- $envs | string split -n ' ')
+    if test (count $envs_list) -lt 2
+        echo "flow: the chain needs at least two branches (e.g. '$develop $master')" >&2
+        set -e __flow_init_defaults
+        return 1
+    end
+    test $envs_list[1] = $develop; or echo "  note: the chain usually starts at $develop (features land there)"
+    test $envs_list[-1] = $master; or echo "  note: the chain usually ends at $master (production)"
+
+    # 4. prefixes
+    __flow_ask "Feature branch prefix" (__flow_cfg gitflow.prefix.feature feature/); or return 1
+    set -l pf $__flow_answer
+    __flow_ask "Hotfix branch prefix" (__flow_cfg gitflow.prefix.hotfix hotfix/); or return 1
+    set -l ph $__flow_answer
+    __flow_ask "Release branch prefix" (__flow_cfg gitflow.prefix.release release/); or return 1
+    set -l pr $__flow_answer
+    __flow_ask "Version tag prefix (git-flow)" (__flow_cfg gitflow.prefix.versiontag v); or return 1
+    set -l pv $__flow_answer
+
+    # 5. how features finish, back-merges
+    echo "  Features: 'local' merges the feature into $develop on your machine and pushes (no PR);"
+    echo "  'pr' rebases, pushes and opens a pull request instead (for a protected $develop)."
+    __flow_ask "Finish features by" (__flow_cfg flow.feature.finish local); or return 1
+    set -l ffin $__flow_answer
+    if not contains -- $ffin local pr
+        echo "flow: expected 'local' or 'pr'" >&2
+        set -e __flow_init_defaults
+        return 1
+    end
+    set -l bm_default y
+    test (__flow_cfg flow.hotfix.backmerge $develop) = (__flow_cfg flow.hotfix.base $master); and set bm_default n
+    set -l backmerge
+    __flow_ask_yn "Open a [back-merge] PR into $develop when a hotfix or release finishes?" $bm_default
+    set backmerge $status
+    test $backmerge -eq 2; and begin; set -e __flow_init_defaults; return 1; end
+
+    # write
+    echo
+    __flow_info "write git config"
+    command git config gitflow.branch.master $master
+    command git config gitflow.branch.develop $develop
+    command git config gitflow.prefix.feature $pf
+    command git config gitflow.prefix.hotfix $ph
+    command git config gitflow.prefix.release $pr
+    command git config gitflow.prefix.versiontag $pv
+    test -n "$(__flow_cfg gitflow.prefix.support)"; or command git config gitflow.prefix.support support/
+    command git config flow.remote $__flow_remote
+    command git config flow.envs "$envs_list"
+    if test $ffin = pr
+        command git config flow.feature.finish pr
+    else
+        command git config --unset flow.feature.finish 2>/dev/null
+    end
+    if test $backmerge -eq 0
+        command git config --unset flow.hotfix.backmerge 2>/dev/null
+        command git config --unset flow.release.backmerge 2>/dev/null
+    else
+        command git config flow.hotfix.backmerge $master
+        command git config flow.release.backmerge $master
+    end
+
+    # branches: master first, then along the chain, each from the one before
+    __flow_info "check branches"
+    __flow_init_branch $master "" $has_remote
+    set -l prev $master
+    for b in $envs_list[-1..1]
+        test $b = $master; and continue
+        __flow_init_branch $b $prev $has_remote
+        set prev $b
+    end
+    contains -- $develop $envs_list; or __flow_init_branch $develop $master $has_remote
+
+    set -e __flow_init_defaults
+    echo
+    __flow_info "done — flow config:"
+    flow config
 end

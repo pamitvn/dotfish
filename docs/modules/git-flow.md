@@ -40,10 +40,53 @@ Remember the install is a Snapshot copy: editing the Module's files under
 `~/.config/fish` directly gets overwritten on the next `dotfish` run.
 Machine-local tweaks belong in `profile.local.fish`.
 
+## Set up a repo: `flow init`
+
+Run it once per repository (and again whenever something changes — current
+values become the defaults):
+
+```
+$ flow init
+flow init — answer each step, Enter keeps the [default].
+
+Remote to push and open PRs against [origin]:
+Production branch (git-flow's master) [main]:
+Development branch, where features land (git-flow's develop) [develop]: staging-product-review
+  Environments are promoted forward with 'flow promote' (PR to the next one), first to last.
+Environment chain, space separated [staging-product-review staging main]:
+Feature branch prefix [feature/]: TRUST-
+Hotfix branch prefix [hotfix/]:
+Release branch prefix [release/]:
+Version tag prefix (git-flow) [v]:
+  Features: 'local' merges the feature into staging-product-review on your machine and pushes (no PR);
+  'pr' rebases, pushes and opens a pull request instead (for a protected staging-product-review).
+Finish features by [local]:
+Open a [back-merge] PR into staging-product-review when a hotfix or release finishes? (y/n) [y]:
+
+==> write git config
+==> check branches
+Branch 'staging' does not exist — create it from 'main'? (y/n) [y]:
+Push 'staging' to origin? (y/n) [y]:
+==> done — flow config:
+...
+```
+
+It writes git-flow's own keys (`gitflow.branch.master`, `gitflow.branch.develop`,
+`gitflow.prefix.*` — so `git flow init` is not needed) and the `flow.*` keys
+into the repo's `.git/config`, then makes sure every branch in the chain
+exists: a branch that only exists on the remote is tracked, a missing one is
+created from the next environment up and pushed, after asking. Defaults are
+read from the repo — `main` or `master`, an existing `staging` branch slips
+into the chain — and from the current config on re-runs.
+
+`flow init --defaults` (or a non-interactive stdin) takes every default
+without asking.
+
 ## What it changes in your shell
 
 | You type | You get |
 |---|---|
+| `flow init [--defaults]` | configure this repo step by step: remote, main/develop, environment chain, prefixes, how features finish, back-merge PRs; create missing branches; print `flow config` |
 | `flow feature start <name>` | fast-forward develop from the remote, then `git flow feature start <name>` off it |
 | `flow hotfix start <name>` | fast-forward main from the remote, then `git flow hotfix start <name>` off it |
 | `flow release start <version>` | fast-forward develop from the remote, then `git flow release start <version>` off it |
@@ -54,7 +97,7 @@ Machine-local tweaks belong in `profile.local.fish`.
 | `flow promote [from]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge |
 | `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, main when you are on a hotfix branch, develop otherwise |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
-| Tab completion | subcommands, `finish` flags, `sync` bases, and your local `feature`/`hotfix`/`release` branches by prefix |
+| Tab completion | subcommands, `init`/`finish`/`promote` flags, `sync` bases, promotable environments, and your local `feature`/`hotfix`/`release` branches by prefix |
 
 `start` takes git-flow's optional second positional (`flow feature start
 <name> <base>`); that base is the one synced and branched from. Any other
@@ -105,8 +148,8 @@ No aliases or environment variables are set; everything is functions.
 
 ### Where the branches come from
 
-The topology is read from git-flow's own config in the current repo, so
-`git flow init` remains the one place to set it:
+The topology is read from git-flow's own config in the current repo;
+`flow init` writes it (so does `git flow init`, if you prefer):
 
 | Setting | Read from | Default |
 |---|---|---|
@@ -274,7 +317,8 @@ preflight            none
 ## Tweaks & opt-outs
 
 - **Point PRs somewhere else than git-flow's branches** — per repo, with git
-  config (unset keys fall back to the table above):
+  config (`flow init` covers the common ones; unset keys fall back to the
+  table above):
 
   ```sh
   git config flow.feature.base develop          # features finish into develop
