@@ -20,6 +20,7 @@ complete -c flow -f
 complete -c flow -n __fish_use_subcommand -a feature -d 'Feature branch (from develop)'
 complete -c flow -n __fish_use_subcommand -a hotfix -d 'Hotfix branch (from main)'
 complete -c flow -n __fish_use_subcommand -a release -d 'Release branch (from develop)'
+complete -c flow -n __fish_use_subcommand -a finish -d 'Finish the branch you are on (type from its prefix)'
 complete -c flow -n __fish_use_subcommand -a sync -d 'Back to the base branch, fast-forwarded'
 complete -c flow -n __fish_use_subcommand -a config -d 'Show resolved branches'
 
@@ -37,3 +38,16 @@ complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -a '(__flow
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l draft -d 'Open PR(s) as draft'
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l no-pr -d 'Rebase and push only'
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l web -d 'Open the PR in the browser'
+
+# Plain `flow finish`: every topic branch, whatever its type.
+function __flow_complete_all_branches
+    __flow_load
+    __flow_topic_branches $__flow_prefix_feature
+    __flow_topic_branches $__flow_prefix_hotfix
+    __flow_topic_branches $__flow_prefix_release
+end
+set -l auto "__fish_seen_subcommand_from finish; and not $topic"
+complete -c flow -n "$auto" -a '(__flow_complete_all_branches)'
+complete -c flow -n "$auto" -l draft -d 'Open PR(s) as draft'
+complete -c flow -n "$auto" -l no-pr -d 'Rebase and push only'
+complete -c flow -n "$auto" -l web -d 'Open the PR in the browser'

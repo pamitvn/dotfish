@@ -44,6 +44,7 @@ Machine-local tweaks belong in `profile.local.fish`.
 | `flow feature finish [name]` | rebase onto the feature base, `git push --force-with-lease`, `gh pr create` → feature base |
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
+| `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
 | `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: main when you are on a hotfix branch, develop otherwise |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `finish` flags, `sync` bases, and your local `feature`/`hotfix`/`release` branches by prefix |
@@ -57,6 +58,14 @@ only), `--web` (open the created PR in the browser). The branch name is
 optional — with none, the branch you are on is finished — and the prefix may
 be omitted (`flow feature finish 1858` resolves to `TRUST-1858` when the
 feature prefix is `TRUST-`).
+
+Plain `flow finish` skips the type: on `TRUST-1858` it runs `flow feature
+finish`, on `hotfix/quota-mail` `flow hotfix finish`, on `release/1.2.0`
+`flow release finish`. A given name that carries a prefix decides the type;
+one without falls back to the branch you are on. hotfix and release prefixes
+are matched before the feature prefix, since the latter is usually the
+loosest. A branch matching no prefix is refused with a pointer to the
+explicit form.
 
 No aliases or environment variables are set; everything is functions.
 
@@ -93,6 +102,7 @@ to its remote counterpart, never merged, rebased or reset.
 `finish` stops before anything is pushed when:
 
 - the branch does not carry the type's prefix, or does not exist locally
+- (plain `flow finish`) the branch matches none of the three prefixes
 - the branch is `main`, `staging`, `develop`, or the configured main/develop
   branch — environment branches are never finished
 - the working tree has uncommitted changes
@@ -123,7 +133,8 @@ $ flow feature start 1858
 ==> fast-forward staging-product-review (3 commits)
 Switched to a new branch 'TRUST-1858'
 $ git commit -am "feat: ..."
-$ flow feature finish
+$ flow finish                          # same as: flow feature finish
+==> feature branch — flow feature finish
 ==> fetch origin
 ==> rebase TRUST-1858 onto origin/staging-product-review
 ==> push TRUST-1858 (force-with-lease)

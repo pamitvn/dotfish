@@ -6,6 +6,7 @@
 #   flow hotfix finish [name] [opts]       PR → main, plus a [back-merge] PR
 #   flow release start <version>           sync develop, then git flow release start
 #   flow release finish [name] [opts]      PR → main, plus a [back-merge] PR
+#   flow finish [name] [opts]              finish the branch you are on; type from its prefix
 #   flow sync [branch]                     back to the base branch, fast-forwarded
 #   flow config                            show the resolved branches
 #
@@ -36,6 +37,8 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
                     echo "usage: flow $type start <name> | finish [name] [--draft] [--no-pr] [--web]" >&2
                     return 2
             end
+        case finish
+            __flow_finish_auto $argv[2..-1]
         case sync
             __flow_sync $argv[2..-1]
         case config
@@ -60,11 +63,13 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
         case '' -h --help help
             echo 'usage: flow feature|hotfix|release start <name>'
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
+            echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
             echo '       flow sync [branch]'
             echo '       flow config'
             test -z "$type"; and return 2
+            return 0
         case '*'
-            echo "flow: unknown command '$type' (feature|hotfix|release|sync|config)" >&2
+            echo "flow: unknown command '$type' (feature|hotfix|release|finish|sync|config)" >&2
             return 2
     end
 end

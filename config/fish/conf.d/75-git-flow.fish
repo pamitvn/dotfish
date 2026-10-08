@@ -3,7 +3,8 @@
 # (Module metadata: modules.toml)
 #
 # `git flow <type> finish` always merges into main (and develop) locally. This
-# Module never runs it: `flow <type> finish` rebases the topic branch onto its
+# Module never runs it: `flow <type> finish` (or plain `flow finish`, which
+# reads the type off the branch prefix) rebases the topic branch onto its
 # base, force-pushes with lease and opens pull request(s) with gh. Integration
 # happens on GitHub with "Rebase and merge"; main is never checked out or
 # merged on the machine.
@@ -166,9 +167,12 @@ end
 # blocks `hotfix/5.7.0`) or <branch> is a parent of one (`hotfix/5.7.0/x`).
 # git-flow 0.4.1 prints its success summary regardless, so check up front.
 function __flow_assert_creatable --argument-names branch
+    # Walk the parent paths (a/b/c → a, a/b). No seq: BSD seq counts *down*
+    # for `seq 1 0`, which made a prefix-less name like TRUST-2474 index $parts[1..0].
     set -l parts (string split / $branch)
-    for i in (seq 1 (math (count $parts) - 1))
-        set -l parent (string join / $parts[1..$i])
+    set -l parent
+    for part in $parts[1..-2]
+        set parent (string join / $parent $part)
         if command git show-ref --verify --quiet refs/heads/$parent
             echo "flow: cannot create '$branch': a branch named '$parent' is in the way" >&2
             echo "      rename it (git branch -m $parent <other>) or delete it (git branch -d $parent)" >&2
@@ -179,6 +183,40 @@ function __flow_assert_creatable --argument-names branch
         echo "flow: cannot create '$branch': branches named '$branch/…' are in the way" >&2
         return 1
     end
+end
+
+# Print the topic type (feature|hotfix|release) a branch belongs to, judged by
+# the git-flow prefixes; fail when none matches. hotfix and release are tested
+# before feature because the feature prefix is usually the loosest (`TRUST-`).
+# Callers run __flow_load first.
+function __flow_type_of --argument-names branch
+    if test -n "$__flow_prefix_hotfix"; and string match -q -- "$__flow_prefix_hotfix*" $branch
+        echo hotfix
+    else if test -n "$__flow_prefix_release"; and string match -q -- "$__flow_prefix_release*" $branch
+        echo release
+    else if string match -q -- "$__flow_prefix_feature*" $branch
+        echo feature
+    else
+        return 1
+    end
+end
+
+# `flow finish [name] [opts]`: pick the type from the branch's prefix — the
+# given name when it carries one, else the branch you are on — then run the
+# matching `flow <type> finish`.
+function __flow_finish_auto
+    __flow_load
+    set -l positional (string match -rv -- '^-' $argv)
+    set -l current (command git rev-parse --abbrev-ref HEAD 2>/dev/null)
+    set -l type
+    test -n "$positional[1]"; and set type (__flow_type_of $positional[1])
+    test -z "$type"; and test -n "$current"; and set type (__flow_type_of $current)
+    if test -z "$type"
+        echo "flow: cannot tell whether '$current' is a feature, hotfix or release branch (no git-flow prefix matches) — use flow <type> finish" >&2
+        return 2
+    end
+    __flow_info (string trim -- "$type branch — flow $type finish $argv")
+    __flow_finish $type $argv
 end
 
 # `flow <type> start <name> [base] [git-flow flags]`: sync the base git-flow
