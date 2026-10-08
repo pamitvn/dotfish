@@ -243,6 +243,17 @@ func Doctor(man *manifest.Manifest) error {
 		}
 	}
 
+	// Core plugins from fish_plugins that Core functions rely on. bass backs
+	// run-bash; fisher installs it, so a miss means plugins never synced.
+	if pkgmgr.Has("fish") {
+		if exec.Command("fish", "-c", "functions -q bass").Run() == nil {
+			ok("bass plugin (Core: run-bash)")
+		} else {
+			errf("bass plugin missing (Core: run-bash) — run: fish -c 'fisher update'")
+			good = false
+		}
+	}
+
 	if pkgmgr.Has("fish") {
 		confd := filepath.Join(FishDir(), "conf.d")
 		out, _ := exec.Command("fish", "-c", fmt.Sprintf("for f in %s/*.fish; source $f; end", confd)).CombinedOutput()

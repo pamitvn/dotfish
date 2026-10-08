@@ -47,6 +47,12 @@ registers its tool for this (deselect the Module and its completions go
 too); add extra tools via `dotfish_completion_extra_tools` in
 `profile.local.fish`.
 
+Core also ships `run-bash`: copy any bash snippet (`VAR=…`, `export`,
+heredocs, multi-line `\` chains) that fish rejects, run `run-bash`, and it
+executes under real bash via bass with the resulting variables imported
+back into your fish session. `run-bash <file>`, `… | run-bash` and
+`run-bash -c '…'` also work; `-n` previews, `-s` keeps only `export`s.
+
 On top of Core you pick any subset of **Modules**. Each Module couples one
 dependency to the config files it owns; deselecting a Module installs neither.
 
