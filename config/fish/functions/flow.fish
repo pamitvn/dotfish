@@ -12,7 +12,9 @@
 #                 --auto    enable GitHub auto-merge with a merge commit
 #                 --merge   merge the PR now with a merge commit
 #                 --draft / --web as for finish
-#   flow sync [branch]                     back to the base branch, fast-forwarded
+#   flow sync [branch] [-d|-D]             back to the base branch, fast-forwarded
+#                 -d        then delete the branch you left, once merged
+#                 -D        then delete it regardless
 #   flow config                            show the resolved branches
 #
 #   finish opts (hotfix/release, or flow.feature.finish=pr):
@@ -80,7 +82,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
             echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
             echo '       flow promote [from] [--draft|--auto|--merge] [--web]   (PR to the next environment)'
-            echo '       flow sync [branch]'
+            echo '       flow sync [branch] [-d|-D]   (-d: delete the branch you left once merged)'
             echo '       flow config'
             test -z "$type"; and return 2
             return 0

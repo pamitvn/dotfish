@@ -317,17 +317,35 @@ function __flow_finish_local --argument-names type branch base
     __flow_info "done — $branch is in $base and pushed. Remove it with: $hint"
 end
 
-# `flow sync [branch]`: go back to a base branch and fast-forward it. With no
-# argument the base is inferred from the branch you are on (an environment
-# branch → itself; hotfix prefix → master; feature, release and anything else
-# → develop).
+# Succeed when <branch> has landed: its tip is in a remote branch other than
+# its own (merge commit, fast-forward), or it is the head of a merged PR
+# (rebase-and-merge rewrites the commits, so only GitHub can tell).
+function __flow_is_merged --argument-names branch
+    command git for-each-ref --contains $branch --format='%(refname)' refs/remotes/$__flow_remote/ \
+        | string match -qv -- refs/remotes/$__flow_remote/$branch
+    and return 0
+    type -q gh; or return 1
+    set -l tip (command git rev-parse $branch)
+    contains -- $tip (gh pr list --head $branch --state merged --json headRefOid --jq '.[].headRefOid' 2>/dev/null)
+end
+
+# `flow sync [branch] [-d|-D]`: go back to a base branch and fast-forward it.
+# With no argument the base is inferred from the branch you are on (an
+# environment branch → itself; promote/<from>-into-<to> → from; hotfix prefix
+# → master; feature, release and anything else → develop). -d then deletes the
+# branch you left once it is merged (see __flow_is_merged); -D deletes it
+# regardless.
 function __flow_sync
+    argparse -x d,D d/delete D/force-delete -- $argv; or return 2
     __flow_load
+    set -l current (command git rev-parse --abbrev-ref HEAD)
     set -l base $argv[1]
     if test -z "$base"
-        set -l current (command git rev-parse --abbrev-ref HEAD)
+        set -l m (string match -r '^promote/(.+)-into-(.+)$' -- $current)
         if contains -- $current $__flow_envs
             set base $current
+        else if test (count $m) -eq 3; and contains -- $m[2] $__flow_envs
+            set base $m[2]
         else if string match -q -- "$__flow_prefix_hotfix*" $current
             set base $__flow_master
         else
@@ -337,6 +355,21 @@ function __flow_sync
     __flow_require_clean; or return 1
     __flow_sync_branch $base --checkout; or return 1
     __flow_info "on $base — up to date with $__flow_remote/$base"
+
+    set -q _flag_d; or set -q _flag_D; or return 0
+    if test $current = $base; or test $current = HEAD; or contains -- $current $__flow_master $__flow_develop $__flow_envs
+        __flow_info "nothing to delete — $current is not a topic branch"
+        return 0
+    end
+    if set -q _flag_d; and not __flow_is_merged $current
+        echo "flow: '$current' is not merged on $__flow_remote (and no merged PR has its tip) — kept; -D deletes it anyway" >&2
+        return 1
+    end
+    __flow_info "delete $current"
+    command git branch -q -D $current; or return 1
+    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$current
+        __flow_info "$__flow_remote/$current still exists — remove it with: git push $__flow_remote --delete $current"
+    end
 end
 
 # __flow_open_pr <branch> <base> <title> [gh pr create flags...]
@@ -515,9 +548,9 @@ Merge with **Create a merge commit**, then delete this branch. Do not merge $to 
     __flow_open_pr $pbranch $to "Promote $from → $to" --body $body $flags; or return 1
     __flow_promote_merge $pbranch $to "$mode"; or return 1
     if test -z "$mode"
-        __flow_info "done — merge on GitHub with 'Create a merge commit'. Afterwards: git checkout $from; git branch -D $pbranch"
+        __flow_info "done — merge on GitHub with 'Create a merge commit'. Afterwards: flow sync -d"
     else
-        __flow_info "afterwards: git checkout $from; git branch -D $pbranch"
+        __flow_info "once merged: flow sync -d (back to $from, $pbranch deleted)"
     end
 end
 

@@ -95,7 +95,7 @@ without asking.
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
 | `flow promote [from] [--auto\|--merge]` | fetch, list what `from` (default: the branch you are on) has that the next environment lacks, `gh pr create` from → next. No checkout, no local merge, no back-merge. On a conflict: cut `promote/<from>-into-<to>`, merge the target into it for you to resolve; `flow promote` on that branch pushes it and opens the PR |
-| `flow sync [branch]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, main when you are on a hotfix branch, develop otherwise |
+| `flow sync [branch] [-d\|-D]` | fetch, fast-forward the base branch and check it out. With no argument: the environment branch you are on, `<from>` when you are on `promote/<from>-into-<to>`, main when you are on a hotfix branch, develop otherwise. `-d` then deletes the branch you left once it is merged; `-D` deletes it regardless |
 | `flow config` | the resolved remote, develop/main, prefixes, PR bases, and whether a preflight gate is defined |
 | Tab completion | subcommands, `init`/`finish`/`promote` flags, `sync` bases, promotable environments, and your local `feature`/`hotfix`/`release` branches by prefix |
 
@@ -400,10 +400,14 @@ preflight            none
 
 - **Skip the PR** for one run: `--no-pr`. Open it yourself later with
   `gh pr create`, or run `finish` again — it reuses an open PR.
-- **Clean up a merged branch**: `flow sync` leaves the topic branch in place
-  (GitHub's rebase-and-merge rewrites its commits, so git cannot tell it was
-  merged). Delete it yourself with `git branch -D <branch>` once the PR shows
-  as merged.
+- **Clean up a merged branch**: `flow sync` leaves the topic branch in place;
+  `flow sync -d` deletes it after switching. It counts as merged when a
+  remote branch contains its tip (merge commit, fast-forward — a promotion
+  branch after its PR) or, since rebase-and-merge rewrites the commits, when
+  `gh` finds a merged PR whose head is that exact tip. Anything else is kept
+  with an error; `flow sync -D` deletes it regardless. The remote branch is
+  only reported, never deleted (GitHub's "Automatically delete head branches"
+  usually has it gone already).
 - **Missing tools**: `flow … start` needs `git-flow` and tells you to install
   it otherwise; `flow feature finish` and `flow sync` need only git;
   `flow hotfix|release finish` and `flow promote` also need `gh` for the PR

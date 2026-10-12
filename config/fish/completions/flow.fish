@@ -31,6 +31,8 @@ function __flow_complete_bases
     printf '%s\n' $__flow_develop $__flow_master
 end
 complete -c flow -n '__fish_seen_subcommand_from sync' -a '(__flow_complete_bases)'
+complete -c flow -n '__fish_seen_subcommand_from sync' -s d -l delete -d 'Delete the branch you left, once merged'
+complete -c flow -n '__fish_seen_subcommand_from sync' -s D -l force-delete -d 'Delete the branch you left regardless'
 
 # promote: every environment but the last.
 function __flow_complete_promote_sources
