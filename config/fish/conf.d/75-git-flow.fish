@@ -25,7 +25,7 @@
 #   flow.feature.finish     local (default): merge into the feature base locally
 #                           and push; pr: rebase, push, open a PR instead
 #
-# `flow promote [from] [--draft|--auto|--merge] [--web]` moves one environment
+# `flow promote [from] [--draft|--auto|--merge] [--web] [-d]` moves one environment
 # forward along flow.envs by opening a PR from → next (develop → staging,
 # staging → main). GitHub cannot pin a merge method on a PR, so --auto enables
 # auto-merge with a merge commit and --merge merges right away. Nothing is
@@ -35,7 +35,8 @@
 # (GitHub's "Resolve conflicts" button would merge staging INTO develop).
 # Instead a promotion branch promote/<from>-into-<to> is cut from develop,
 # the target is merged into it, you resolve there, and `flow promote` again
-# pushes it and opens the PR promote/… → to. develop stays untouched.
+# pushes it and opens the PR promote/… → to. develop stays untouched. With -d
+# it then goes back to from and drops the local promote/… branch.
 #
 # `flow init` sets all of the above (and git-flow's own keys) step by step
 # for the current repo; see __flow_init.
@@ -326,18 +327,20 @@ function __flow_finish_local --argument-names type branch base delete
     __flow_info "done — $branch is in $base and pushed. Remove it with: "(string join '; ' 'flow sync -d' $remote_hint)
 end
 
-# After a PR finish with -d: back to the base `flow sync` would pick, then
-# drop local <branch> — only when it is exactly what was pushed, since the
-# open PR lives on <remote>/<branch> (git checkout <branch> brings it back).
-function __flow_finish_drop --argument-names type branch
-    set -l back $__flow_develop
-    test $type = hotfix; and set back $__flow_master
+# -d after a PR finish or promote: back to <back>, fast-forwarded, then drop
+# local <branch> — only when it is exactly what was pushed (the PR lives on
+# <remote>/<branch>; git checkout <branch> brings it back) or already merged.
+function __flow_drop_pushed --argument-names back branch
     __flow_sync_branch $back --checkout; or return 1
-    if test (command git rev-parse $branch) != (command git rev-parse refs/remotes/$__flow_remote/$branch 2>/dev/null)
-        echo "flow: local '$branch' differs from $__flow_remote/$branch — kept" >&2
+    set -l tip (command git rev-parse $branch)
+    if test "$tip" = "$(command git rev-parse -q --verify refs/remotes/$__flow_remote/$branch)"
+        __flow_info "delete local $branch — $__flow_remote/$branch keeps it (git checkout $branch brings it back)"
+    else if __flow_is_merged $branch
+        __flow_info "delete $branch — merged"
+    else
+        echo "flow: local '$branch' differs from $__flow_remote/$branch and is not merged — kept" >&2
         return 1
     end
-    __flow_info "delete local $branch — $__flow_remote/$branch keeps it (git checkout $branch brings it back)"
     command git branch -q -D $branch
 end
 
@@ -426,7 +429,7 @@ end
 # checked out, merged or pushed — and no back-merge is opened: commits the
 # target already has that the source lacks (hotfixes) stay where they are.
 function __flow_promote
-    argparse -x auto,merge -x draft,merge -x draft,auto draft web auto merge -- $argv; or return 2
+    argparse -x auto,merge -x draft,merge -x draft,auto draft web auto merge d/delete -- $argv; or return 2
     __flow_load
     set -l mode
     set -q _flag_auto; and set mode auto
@@ -441,7 +444,7 @@ function __flow_promote
             set -q _flag_web; and set -a flags --web
             __flow_info "fetch $__flow_remote"
             command git fetch --prune $__flow_remote; or return 1
-            __flow_promote_finish $m[2] $m[3] "$mode" $flags
+            __flow_promote_finish $m[2] $m[3] "$mode" "$_flag_delete" $flags
             return
         end
     end
@@ -485,7 +488,7 @@ function __flow_promote
     # Would the merge conflict? (git ≥ 2.38; older git cannot tell — go on.)
     command git merge-tree --write-tree --no-messages $rto $rfrom >/dev/null 2>&1
     if test $status -eq 1
-        __flow_promote_conflicted $from $to "$mode" $flags
+        __flow_promote_conflicted $from $to "$mode" "$_flag_delete" $flags
         return
     end
 
@@ -530,8 +533,8 @@ end
 # from and to conflict: cut promote/<from>-into-<to> off the remote from,
 # merge the remote to into it and hand the conflicts to the user. `flow
 # promote` on that branch continues with __flow_promote_finish.
-function __flow_promote_conflicted --argument-names from to mode
-    set -l flags $argv[4..-1]
+function __flow_promote_conflicted --argument-names from to mode delete
+    set -l flags $argv[5..-1]
     set -l pbranch (__flow_promote_branch $from $to)
     __flow_info "$from and $to conflict — resolving on $pbranch so $from itself is not touched"
     echo "    (do not use GitHub's 'Resolve conflicts' on a $from → $to PR: it merges $to into $from)"
@@ -543,17 +546,19 @@ function __flow_promote_conflicted --argument-names from to mode
     command git checkout -q -b $pbranch $__flow_remote/$from; or return 1
     __flow_info "merge $__flow_remote/$to into $pbranch"
     if command git merge --no-edit $__flow_remote/$to
-        __flow_promote_finish $from $to "$mode" $flags
+        __flow_promote_finish $from $to "$mode" "$delete" $flags
         return
     end
-    printf '\nResolve the conflicts, then:\n    git add <files>\n    git commit\n    flow promote\n(or give up: git merge --abort; git checkout %s; git branch -D %s)\n' $from $pbranch >&2
+    set -l again 'flow promote'
+    test -n "$delete"; and set again 'flow promote -d'
+    printf '\nResolve the conflicts, then:\n    git add <files>\n    git commit\n    %s\n(or give up: git merge --abort; git checkout %s; git branch -D %s)\n' $again $from $pbranch >&2
     return 1
 end
 
 # On promote/<from>-into-<to>: make sure both sides are in, push, open the PR
 # promote/… → to. Nothing happens to <from>.
-function __flow_promote_finish --argument-names from to mode
-    set -l flags $argv[4..-1]
+function __flow_promote_finish --argument-names from to mode delete
+    set -l flags $argv[5..-1]
     set -l pbranch (__flow_promote_branch $from $to)
     if command git rev-parse -q --verify MERGE_HEAD >/dev/null
         echo "flow: merge still in progress on $pbranch — resolve, git add, git commit, then flow promote" >&2
@@ -582,6 +587,11 @@ $from and $to conflicted; the conflicts were resolved on this branch, cut from $
 Merge with **Create a merge commit**, then delete this branch. Do not merge $to back into $from."
     __flow_open_pr $pbranch $to "Promote $from → $to" --body $body $flags; or return 1
     __flow_promote_merge $pbranch $to "$mode"; or return 1
+    if test -n "$delete"
+        test -z "$mode"; and __flow_info "merge on GitHub with 'Create a merge commit'."
+        __flow_drop_pushed $from $pbranch
+        return
+    end
     if test -z "$mode"
         __flow_info "done — merge on GitHub with 'Create a merge commit'. Afterwards: flow sync -d"
     else
@@ -610,6 +620,9 @@ function __flow_finish --argument-names type
 
     set -l branch (__flow_resolve_branch $prefix "$argv[1]"); or return 1
     __flow_assert_not_protected $branch; or return 1
+    # Where -d returns to after a PR finish: the base `flow sync` would pick.
+    set -l back $__flow_develop
+    test $type = hotfix; and set back $__flow_master
     __flow_require_clean; or return 1
 
     # Features land on the team's working branch locally; only hotfixes and
@@ -638,7 +651,7 @@ function __flow_finish --argument-names type
 
     if set -q _flag_no_pr
         __flow_info "done (--no-pr)"
-        set -q _flag_delete; and begin; __flow_finish_drop $type $branch; or return 1; end
+        set -q _flag_delete; and begin; __flow_drop_pushed $back $branch; or return 1; end
         return 0
     end
     if not type -q gh
@@ -656,7 +669,7 @@ function __flow_finish --argument-names type
         __flow_open_pr $branch $backmerge "[back-merge] $branch" $pr_flags; or return 1
     end
     __flow_info "done — merge on GitHub with 'Rebase and merge'. '$base' was not touched locally."
-    set -q _flag_delete; and begin; __flow_finish_drop $type $branch; or return 1; end
+    set -q _flag_delete; and begin; __flow_drop_pushed $back $branch; or return 1; end
     return 0
 end
 

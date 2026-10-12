@@ -11,6 +11,7 @@
 #   flow promote [from] [opts]             PR from one environment to the next (flow.envs)
 #                 --auto    enable GitHub auto-merge with a merge commit
 #                 --merge   merge the PR now with a merge commit
+#                 -d        then back to from, local promote/… branch deleted
 #                 --draft / --web as for finish
 #   flow sync [branch] [-d|-D]             back to the base branch, fast-forwarded
 #                 -d        then delete the branch you left, once merged
@@ -83,7 +84,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
             echo '       flow feature|hotfix|release start <name>'
             echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web] [-d]'
             echo '       flow finish [name] [--draft] [--no-pr] [--web] [-d]   (type from the branch prefix; -d deletes the local branch)'
-            echo '       flow promote [from] [--draft|--auto|--merge] [--web]   (PR to the next environment)'
+            echo '       flow promote [from] [--draft|--auto|--merge] [--web] [-d]   (PR to the next environment)'
             echo '       flow sync [branch] [-d|-D]   (-d: delete the branch you left once merged)'
             echo '       flow config'
             test -z "$type"; and return 2
