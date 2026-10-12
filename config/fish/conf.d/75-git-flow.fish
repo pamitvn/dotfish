@@ -279,8 +279,9 @@ end
 
 # Finish <branch> into <base> locally, no PR: fast-forward <base> from the
 # remote, rebase <branch> onto it, fast-forward <base> to <branch>, push it.
-# Linear history, same result as "Rebase and merge" on GitHub.
-function __flow_finish_local --argument-names type branch base
+# Linear history, same result as "Rebase and merge" on GitHub. With delete
+# set, <branch> is deleted afterwards — it is in <base> by then.
+function __flow_finish_local --argument-names type branch base delete
     set -l has_remote (command git remote get-url $__flow_remote >/dev/null 2>&1; and echo 1)
     if test -n "$has_remote"
         __flow_sync_branch $base; or return 1
@@ -310,11 +311,34 @@ function __flow_finish_local --argument-names type branch base
         __flow_info "push $base"
         command git push -q -u $__flow_remote $base; or return 1
     end
-    set -l hint "flow sync -d"
+    set -l remote_hint
     if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
-        set hint "$hint; git push $__flow_remote --delete $branch"
+        set remote_hint "git push $__flow_remote --delete $branch"
     end
-    __flow_info "done — $branch is in $base and pushed. Remove it with: $hint"
+    if test -n "$delete"
+        __flow_info "delete $branch"
+        command git branch -q -d $branch; or return 1
+        set -l done "done — $branch is in $base and pushed, local branch deleted"
+        test -n "$remote_hint"; and set done "$done. $__flow_remote/$branch still exists: $remote_hint"
+        __flow_info $done
+        return 0
+    end
+    __flow_info "done — $branch is in $base and pushed. Remove it with: "(string join '; ' 'flow sync -d' $remote_hint)
+end
+
+# After a PR finish with -d: back to the base `flow sync` would pick, then
+# drop local <branch> — only when it is exactly what was pushed, since the
+# open PR lives on <remote>/<branch> (git checkout <branch> brings it back).
+function __flow_finish_drop --argument-names type branch
+    set -l back $__flow_develop
+    test $type = hotfix; and set back $__flow_master
+    __flow_sync_branch $back --checkout; or return 1
+    if test (command git rev-parse $branch) != (command git rev-parse refs/remotes/$__flow_remote/$branch 2>/dev/null)
+        echo "flow: local '$branch' differs from $__flow_remote/$branch — kept" >&2
+        return 1
+    end
+    __flow_info "delete local $branch — $__flow_remote/$branch keeps it (git checkout $branch brings it back)"
+    command git branch -q -D $branch
 end
 
 # Succeed when <branch> has landed: its tip is in a remote branch other than
@@ -567,7 +591,7 @@ end
 
 # The finish pipeline; `flow` dispatches here after argparse.
 function __flow_finish --argument-names type
-    argparse draft no-pr web -- $argv[2..-1]; or return 2
+    argparse draft no-pr web d/delete -- $argv[2..-1]; or return 2
     __flow_load
 
     set -l prefix $__flow_prefix_feature
@@ -591,7 +615,7 @@ function __flow_finish --argument-names type
     # Features land on the team's working branch locally; only hotfixes and
     # releases (and promotions) go through pull requests.
     if test $type = feature; and test (__flow_cfg flow.feature.finish local) != pr
-        __flow_finish_local $type $branch $base
+        __flow_finish_local $type $branch $base "$_flag_delete"
         return
     end
 
@@ -614,6 +638,7 @@ function __flow_finish --argument-names type
 
     if set -q _flag_no_pr
         __flow_info "done (--no-pr)"
+        set -q _flag_delete; and begin; __flow_finish_drop $type $branch; or return 1; end
         return 0
     end
     if not type -q gh
@@ -631,6 +656,8 @@ function __flow_finish --argument-names type
         __flow_open_pr $branch $backmerge "[back-merge] $branch" $pr_flags; or return 1
     end
     __flow_info "done — merge on GitHub with 'Rebase and merge'. '$base' was not touched locally."
+    set -q _flag_delete; and begin; __flow_finish_drop $type $branch; or return 1; end
+    return 0
 end
 
 # ---------------------------------------------------------------------------

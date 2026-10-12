@@ -53,6 +53,7 @@ complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -a '(__flow
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l draft -d 'Open PR(s) as draft'
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l no-pr -d 'Rebase and push only'
 complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -l web -d 'Open the PR in the browser'
+complete -c flow -n "$topic; and __fish_seen_subcommand_from finish" -s d -l delete -d 'Then delete the local branch'
 
 # Plain `flow finish`: every topic branch, whatever its type.
 function __flow_complete_all_branches
@@ -66,4 +67,5 @@ complete -c flow -n "$auto" -a '(__flow_complete_all_branches)'
 complete -c flow -n "$auto" -l draft -d 'Open PR(s) as draft'
 complete -c flow -n "$auto" -l no-pr -d 'Rebase and push only'
 complete -c flow -n "$auto" -l web -d 'Open the PR in the browser'
+complete -c flow -n "$auto" -s d -l delete -d 'Then delete the local branch'
 complete -c flow -n '__fish_seen_subcommand_from init' -s d -l defaults -d 'Take every default without asking'

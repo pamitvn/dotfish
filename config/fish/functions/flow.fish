@@ -21,6 +21,8 @@
 #                 --draft   open PR(s) as draft
 #                 --no-pr   rebase + push only
 #                 --web     open the created PR in the browser
+#                 -d        then delete the local branch (a local feature
+#                           finish: it is in develop; a PR: it stays on the remote)
 #
 # `git flow <type> finish` merges into main locally and tags; in a flow where
 # main changes only through reviewed pull requests that is exactly what must
@@ -44,7 +46,7 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
                 case finish
                     __flow_finish $type $argv[3..-1]
                 case '*'
-                    echo "usage: flow $type start <name> | finish [name] [--draft] [--no-pr] [--web]" >&2
+                    echo "usage: flow $type start <name> | finish [name] [--draft] [--no-pr] [--web] [-d]" >&2
                     return 2
             end
         case finish
@@ -79,8 +81,8 @@ function flow --description 'Multi-Environment git flow: start with git-flow, fi
         case '' -h --help help
             echo 'usage: flow init [--defaults]                       (configure this repo step by step)'
             echo '       flow feature|hotfix|release start <name>'
-            echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web]'
-            echo '       flow finish [name] [--draft] [--no-pr] [--web]   (type from the branch prefix)'
+            echo '       flow feature|hotfix|release finish [name] [--draft] [--no-pr] [--web] [-d]'
+            echo '       flow finish [name] [--draft] [--no-pr] [--web] [-d]   (type from the branch prefix; -d deletes the local branch)'
             echo '       flow promote [from] [--draft|--auto|--merge] [--web]   (PR to the next environment)'
             echo '       flow sync [branch] [-d|-D]   (-d: delete the branch you left once merged)'
             echo '       flow config'

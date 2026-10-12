@@ -105,7 +105,11 @@ flags are passed to git-flow untouched.
 
 `finish` flags, for hotfix and release PRs: `--draft` (open PR(s) as draft),
 `--no-pr` (rebase and push only), `--web` (open the created PR in the
-browser). The branch name is optional — with none, the branch you are on is
+browser). For every type, `-d`/`--delete` then deletes the local branch: a
+locally finished feature is in develop by then; a hotfix or release goes back
+to its base (as `flow sync` would) and drops the local copy only when it is
+exactly what was pushed — the PR keeps the remote branch, and `git checkout
+<branch>` brings it back for review fixes. The branch name is optional — with none, the branch you are on is
 finished — and the prefix may be omitted (`flow feature finish 1858`
 resolves to `TRUST-1858` when the feature prefix is `TRUST-`).
 
