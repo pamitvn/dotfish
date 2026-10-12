@@ -60,6 +60,20 @@ brew = "bat"
 paru = "bat"
 
 [[module]]
+name = "ssh-agent"
+order = 25
+description = "Reuse or start ssh-agent and load SSH keys"
+default = true
+files = ["fish/conf.d/25-ssh-agent.fish"]
+# macOS ships ssh-agent (and launchd runs one), so the check passes there and
+# nothing is installed; on Arch it comes from openssh.
+[module.dep]
+check = "ssh-agent"
+[module.dep.packages]
+brew = "openssh"
+paru = "openssh"
+
+[[module]]
 name = "ugrep"
 order = 30
 description = "Replace the grep family with ugrep"
