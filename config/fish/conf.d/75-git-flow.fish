@@ -118,8 +118,10 @@ function __flow_assert_not_protected --argument-names branch
     end
 end
 
+# Submodules are ignored, as git rebase does: a checked-out submodule ahead of
+# its recorded commit ("new commits") is not something flow commits or loses.
 function __flow_require_clean
-    if not command git diff --quiet; or not command git diff --cached --quiet
+    if not command git diff --quiet --ignore-submodules; or not command git diff --cached --quiet --ignore-submodules
         echo "flow: working tree is dirty — commit or stash first" >&2
         return 1
     end
