@@ -310,7 +310,7 @@ function __flow_finish_local --argument-names type branch base
         __flow_info "push $base"
         command git push -q -u $__flow_remote $base; or return 1
     end
-    set -l hint "git branch -d $branch"
+    set -l hint "flow sync -d"
     if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
         set hint "$hint; git push $__flow_remote --delete $branch"
     end
@@ -334,7 +334,8 @@ end
 # environment branch → itself; promote/<from>-into-<to> → from; hotfix prefix
 # → master; feature, release and anything else → develop). -d then deletes the
 # branch you left once it is merged (see __flow_is_merged); -D deletes it
-# regardless.
+# regardless. Already on the base (after a local feature finish), the branch
+# you left is git's previous one, @{-1} — taken only when it is a topic branch.
 function __flow_sync
     argparse -x d,D d/delete D/force-delete -- $argv; or return 2
     __flow_load
@@ -357,18 +358,28 @@ function __flow_sync
     __flow_info "on $base — up to date with $__flow_remote/$base"
 
     set -q _flag_d; or set -q _flag_D; or return 0
-    if test $current = $base; or test $current = HEAD; or contains -- $current $__flow_master $__flow_develop $__flow_envs
-        __flow_info "nothing to delete — $current is not a topic branch"
+    set -l leaving $current
+    if test $current = $base
+        # Already on the base — a local `flow feature finish` ends here. The
+        # branch you left is git's previous one (@{-1}), if it is a topic branch.
+        set leaving (command git rev-parse --abbrev-ref @{-1} 2>/dev/null)
+        if not __flow_type_of "$leaving" >/dev/null; and not string match -q -- 'promote/*' "$leaving"
+            set leaving
+        end
+    end
+    if test -z "$leaving"; or test $leaving = HEAD; or contains -- $leaving $__flow_master $__flow_develop $__flow_envs
+        or not command git show-ref --verify --quiet refs/heads/$leaving
+        __flow_info "nothing to delete — no topic branch was left"
         return 0
     end
-    if set -q _flag_d; and not __flow_is_merged $current
-        echo "flow: '$current' is not merged on $__flow_remote (and no merged PR has its tip) — kept; -D deletes it anyway" >&2
+    if set -q _flag_d; and not __flow_is_merged $leaving
+        echo "flow: '$leaving' is not merged on $__flow_remote (and no merged PR has its tip) — kept; -D deletes it anyway" >&2
         return 1
     end
-    __flow_info "delete $current"
-    command git branch -q -D $current; or return 1
-    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$current
-        __flow_info "$__flow_remote/$current still exists — remove it with: git push $__flow_remote --delete $current"
+    __flow_info "delete $leaving"
+    command git branch -q -D $leaving; or return 1
+    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$leaving
+        __flow_info "$__flow_remote/$leaving still exists — remove it with: git push $__flow_remote --delete $leaving"
     end
 end
 
