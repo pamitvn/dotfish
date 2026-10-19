@@ -249,7 +249,9 @@ a new one while the old one exists.
 `start` and `sync` share one rule: the base is only ever **fast-forwarded**
 to its remote counterpart, never merged, rebased or reset.
 
-- base behind the remote → fast-forwarded (whether or not it is checked out)
+- base behind the remote → fast-forwarded (whether or not it is checked out;
+  when another `git worktree` has it checked out, the fast-forward runs in that
+  worktree, so its files move with the branch)
 - base already current → reported, nothing changes
 - base exists only on the remote → created locally, tracking it
 - base has no remote counterpart → left as is; `start` goes on from the local

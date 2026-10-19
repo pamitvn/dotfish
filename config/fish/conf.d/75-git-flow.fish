@@ -173,19 +173,62 @@ function __flow_sync_branch --argument-names base
         set -l behind (command git rev-list --count $base..$remote_ref)
         if test $behind -eq 0
             __flow_info "$base is up to date with $__flow_remote/$base"
-        else if test $current = $base
-            __flow_info "fast-forward $base ($behind commits)"
-            command git merge --ff-only -q $remote_ref; or return 1
         else
             __flow_info "fast-forward $base ($behind commits)"
-            command git branch -q -f $base $remote_ref; or return 1
+            __flow_ff_to $base $remote_ref; or return 1
         end
     end
 
     if set -q _flag_checkout; and test $current != $base
-        __flow_info "checkout $base"
-        command git checkout -q $base; or return 1
+        __flow_checkout $base; or return 1
     end
+end
+
+# Path of the *other* worktree that has <branch> checked out; fails when none
+# does. Git refuses to move or check out such a branch from here ("used by
+# worktree"). The current branch is never "other".
+function __flow_worktree_of --argument-names branch
+    test (command git rev-parse --abbrev-ref HEAD) = $branch; and return 1
+    set -l wt
+    for line in (command git worktree list --porcelain)
+        if string match -q 'worktree *' -- $line
+            set wt (string sub -s 10 -- $line)
+        else if test "$line" = "branch refs/heads/$branch"
+            echo $wt
+            return 0
+        end
+    end
+    return 1
+end
+
+# Fast-forward <branch> to <target> wherever it lives: here, or in the
+# worktree that has it checked out (merge --ff-only there, so its files move
+# with the ref and its local changes are protected), else by moving the ref.
+# Callers check it is a fast-forward.
+function __flow_ff_to --argument-names branch target
+    set -l wt (__flow_worktree_of $branch)
+    if test (command git rev-parse --abbrev-ref HEAD) = $branch
+        command git merge --ff-only -q $target
+    else if test -n "$wt"
+        __flow_info "  ($branch is checked out in $wt — fast-forwarding there)"
+        command git -C $wt merge --ff-only -q $target
+    else
+        command git branch -q -f $branch $target
+    end
+end
+
+# Check out <branch> here. When another worktree already has it, plain
+# `git checkout` fails ("already used by worktree").
+function __flow_checkout --argument-names branch
+    set -l wt (__flow_worktree_of $branch)
+    if test -z "$wt"
+        __flow_info "checkout $branch"
+        command git checkout -q $branch
+        return
+    end
+    # TODO: what should "go to <branch>" mean when it lives in worktree $wt?
+    echo "flow: '$branch' is checked out in $wt — continue there (cd $wt)" >&2
+    return 1
 end
 
 # Git cannot create <branch> while a parent path is itself a branch (`hotfix`
@@ -306,8 +349,12 @@ function __flow_finish_local --argument-names type branch base delete
         end
     end
     __flow_info "fast-forward $base to $branch"
-    command git checkout -q $base; or return 1
-    command git merge --ff-only -q $branch; or return 1
+    __flow_ff_to $base $branch; or return 1
+    # Land on <base> as before — unless another worktree has it: then stay on
+    # <branch> here (push works on refs, it needs no checkout).
+    if not __flow_worktree_of $base >/dev/null
+        command git checkout -q $base; or return 1
+    end
     if test -n "$has_remote"
         __flow_info "push $base"
         command git push -q -u $__flow_remote $base; or return 1
@@ -317,6 +364,9 @@ function __flow_finish_local --argument-names type branch base delete
         set remote_hint "git push $__flow_remote --delete $branch"
     end
     if test -n "$delete"
+        if test (command git rev-parse --abbrev-ref HEAD) = $branch
+            __flow_checkout $base; or return 1
+        end
         __flow_info "delete $branch"
         command git branch -q -d $branch; or return 1
         set -l done "done — $branch is in $base and pushed, local branch deleted"
