@@ -2,7 +2,7 @@
 #
 #   flow init [--defaults]                 configure this repo step by step (git-flow + flow keys)
 #   flow feature start <name>              sync develop, then git flow feature start
-#   flow feature finish [name]             rebase onto develop, fast-forward develop, push (no PR)
+#   flow feature finish [name]             rebase onto develop, push it, fast-forward + push develop (no PR)
 #   flow hotfix start <name>               sync main, then git flow hotfix start
 #   flow hotfix finish [name] [opts]       PR → main, plus a [back-merge] PR
 #   flow release start <version>           sync develop, then git flow release start
@@ -29,7 +29,7 @@
 # main changes only through reviewed pull requests that is exactly what must
 # never happen. This command keeps git-flow for *starting* branches (topology
 # and prefixes come from its config, and the base is fast-forwarded from the
-# remote first). *Finishing* a feature is rebase → fast-forward develop → push;
+# remote first). *Finishing* a feature is rebase → push it → fast-forward develop → push;
 # finishing a hotfix or release is rebase → push --force-with-lease → gh pr
 # create. Once a PR has merged, `flow sync` returns to the base and
 # fast-forwards it. Environments (develop → staging → main, `flow.envs`) move

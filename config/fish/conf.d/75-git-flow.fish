@@ -322,9 +322,10 @@ function __flow_start --argument-names type
 end
 
 # Finish <branch> into <base> locally, no PR: fast-forward <base> from the
-# remote, rebase <branch> onto it, fast-forward <base> to <branch>, push it.
-# Linear history, same result as "Rebase and merge" on GitHub. With delete
-# set, <branch> is deleted afterwards — it is in <base> by then.
+# remote, rebase <branch> onto it, push <branch>, fast-forward <base> to
+# <branch>, push <base>. Linear history, same result as "Rebase and merge" on
+# GitHub. With delete set, local <branch> is deleted afterwards — it is in
+# <base> and kept on the remote.
 function __flow_finish_local --argument-names type branch base delete
     set -l has_remote (command git remote get-url $__flow_remote >/dev/null 2>&1; and echo 1)
     if test -n "$has_remote"
@@ -348,6 +349,12 @@ function __flow_finish_local --argument-names type branch base delete
             return 1
         end
     end
+    # The feature branch must live on the remote so it can be merged partially
+    # into a release later; push it before <base> moves.
+    if test -n "$has_remote"
+        __flow_info "push $branch"
+        command git push -q --force-with-lease -u $__flow_remote $branch; or return 1
+    end
     __flow_info "fast-forward $base to $branch"
     __flow_ff_to $base $branch; or return 1
     # Land on <base> as before — unless another worktree has it: then stay on
@@ -359,22 +366,16 @@ function __flow_finish_local --argument-names type branch base delete
         __flow_info "push $base"
         command git push -q -u $__flow_remote $base; or return 1
     end
-    set -l remote_hint
-    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$branch
-        set remote_hint "git push $__flow_remote --delete $branch"
-    end
     if test -n "$delete"
         if test (command git rev-parse --abbrev-ref HEAD) = $branch
             __flow_checkout $base; or return 1
         end
-        __flow_info "delete $branch"
+        __flow_info "delete local $branch"
         command git branch -q -d $branch; or return 1
-        set -l done "done — $branch is in $base and pushed, local branch deleted"
-        test -n "$remote_hint"; and set done "$done. $__flow_remote/$branch still exists: $remote_hint"
-        __flow_info $done
+        __flow_info "done — $branch and $base are pushed, local $branch deleted"
         return 0
     end
-    __flow_info "done — $branch is in $base and pushed. Remove it with: "(string join '; ' 'flow sync -d' $remote_hint)
+    __flow_info "done — $branch and $base are pushed"
 end
 
 # -d after a PR finish or promote: back to <back>, fast-forwarded, then drop
@@ -453,11 +454,8 @@ function __flow_sync
         echo "flow: '$leaving' is not merged on $__flow_remote (and no merged PR has its tip) — kept; -D deletes it anyway" >&2
         return 1
     end
-    __flow_info "delete $leaving"
+    __flow_info "delete local $leaving"
     command git branch -q -D $leaving; or return 1
-    if command git show-ref --verify --quiet refs/remotes/$__flow_remote/$leaving
-        __flow_info "$__flow_remote/$leaving still exists — remove it with: git push $__flow_remote --delete $leaving"
-    end
 end
 
 # __flow_open_pr <branch> <base> <title> [gh pr create flags...]

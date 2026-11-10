@@ -10,7 +10,8 @@ whole life of a topic branch:
    start from a stale base, and git-flow's "branches have diverged" refusal no
    longer trips.
 2. `flow feature finish` — fast-forward develop from the remote, rebase the
-   feature onto it, fast-forward develop to the feature, push. No PR.
+   feature onto it, push the feature, fast-forward develop to it, push develop.
+   No PR; the feature branch stays on the remote.
    `flow hotfix|release finish` — rebase onto the base, `git push
    --force-with-lease`, `gh pr create`. `main` is never merged or tagged on
    your machine; integration happens on GitHub with **Rebase and merge**, after
@@ -90,7 +91,7 @@ without asking.
 | `flow feature start <name>` | fast-forward develop from the remote, then `git flow feature start <name>` off it |
 | `flow hotfix start <name>` | fast-forward main from the remote, then `git flow hotfix start <name>` off it |
 | `flow release start <version>` | fast-forward develop from the remote, then `git flow release start <version>` off it |
-| `flow feature finish [name]` | fast-forward develop from the remote, rebase the feature onto it, fast-forward develop to the feature, push develop. No PR (`flow.feature.finish pr` restores the PR path) |
+| `flow feature finish [name]` | fast-forward develop from the remote, rebase the feature onto it, push the feature (`--force-with-lease`), fast-forward develop to the feature, push develop. No PR (`flow.feature.finish pr` restores the PR path) |
 | `flow hotfix finish [name]` | same, then a PR → hotfix base (`main`) **and** a `[back-merge]` PR → develop |
 | `flow release finish [name]` | same as hotfix: PR → release base (`main`) **and** a `[back-merge]` PR → develop. No tag is made locally — tag on GitHub once merged |
 | `flow finish [name]` | read the type off the branch's prefix (the branch you are on, or the given name), then run the matching `flow <type> finish` |
@@ -123,14 +124,18 @@ $ flow finish                          # on TRUST-1858
 ==> fetch origin
 ==> fast-forward staging-product-review (1 commits)   # a teammate's push is picked up first
 ==> rebase TRUST-1858 onto staging-product-review
+==> push TRUST-1858
 ==> fast-forward staging-product-review to TRUST-1858
 ==> push staging-product-review
-==> done — TRUST-1858 is in staging-product-review and pushed. Remove it with: git branch -d TRUST-1858
+==> done — TRUST-1858 and staging-product-review are pushed
 ```
 
 Develop is fast-forwarded from the remote first (a diverged develop stops the
-command, as for any base), the feature is rebased onto it, develop is
-fast-forwarded to the feature and pushed. History stays linear — the same
+command, as for any base), the feature is rebased onto it and pushed
+(`--force-with-lease`, since the rebase rewrote it), then develop is
+fast-forwarded to the feature and pushed. The feature branch is kept on the
+remote so it can still be merged on its own into a release; `-d` only deletes
+the local copy. History stays linear — the same
 result GitHub's "Rebase and merge" would give — and you end up on develop.
 `--draft`, `--no-pr` and `--web` do not apply; a `flow_preflight` gate still
 runs before the merge. If the push is rejected because someone pushed in the
